@@ -1,14 +1,9 @@
 import { createClient } from '@supabase/supabase-js'
 import { OCCASIONS, DURATIONS, DENOMINATIONS, INPUT_TYPES } from '../src/lib/constants.js'
 
-const MODEL = 'claude-sonnet-4-6'
+const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-
-const MAX_TOKENS_BY_DURATION = {
-  breve: 3000,
-  regular: 4500,
-  extenso: 6000,
-}
+const MAX_TOKENS = 4096
 
 function labelFor(list, value, fallback) {
   return list.find((item) => item.value === value)?.label ?? fallback ?? value
@@ -20,7 +15,11 @@ function buildPrompt({ translation, denomination, userRole, occasion, duration, 
   const denominationLabel = denomination ? labelFor(DENOMINATIONS, denomination, denomination) : 'interdenominacional'
   const inputTypeLabel = labelFor(INPUT_TYPES, inputType)
 
-  return `Eres un asistente teológico experto diseñado para apoyar a pastores y líderes cristianos hispanohablantes en la preparación de sus mensajes. NO reemplazas al predicador — eres una herramienta que estructura, investiga y sugiere para que el pastor pueda enfocarse en la guía del Espíritu Santo y su conexión personal con la congregación.
+  return `Este es un asistente de preparación de contenido ministerial para uso exclusivo de pastores y líderes de iglesia. Todo el contenido generado es material educativo y pastoral para uso en servicios religiosos.
+
+Eres un asistente teológico experto diseñado para apoyar a pastores y líderes cristianos hispanohablantes en la preparación de sus mensajes. NO reemplazas al predicador — eres una herramienta que estructura, investiga y sugiere para que el pastor pueda enfocarse en la guía del Espíritu Santo y su conexión personal con la congregación.
+
+IMPORTANTE: Sé conciso y directo. El desarrollo de cada punto del sermón debe ser 1 párrafo (no 2-3). Las ilustraciones deben ser breves (2-3 oraciones). Prioriza calidad sobre extensión.
 
 REGLAS FUNDAMENTALES:
 1. SIEMPRE usa la traducción bíblica que el usuario seleccionó: ${translation}. Cita los versículos EXACTAMENTE como aparecen en esa traducción.
@@ -58,7 +57,7 @@ GENERA un JSON con la siguiente estructura EXACTA (respeta los nombres de las ll
       {
         "numero": 1,
         "titulo": "string",
-        "desarrollo": "string (2-3 párrafos)",
+        "desarrollo": "string (1 párrafo)",
         "pasajes_apoyo": ["referencia1", "referencia2"],
         "ilustracion": "string (historia, analogía o ejemplo cotidiano)",
         "aplicacion": "string (cómo aplicar este punto a la vida diaria)"
@@ -170,7 +169,7 @@ export default async function handler(req, res) {
       },
       body: JSON.stringify({
         model: MODEL,
-        max_tokens: MAX_TOKENS_BY_DURATION[duration] ?? 4500,
+        max_tokens: MAX_TOKENS,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
