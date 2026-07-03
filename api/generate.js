@@ -3,7 +3,7 @@ import { OCCASIONS, DURATIONS, DENOMINATIONS, INPUT_TYPES } from '../src/lib/con
 
 const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const MAX_TOKENS = 4096
+const MAX_TOKENS = 3500
 
 function labelFor(list, value, fallback) {
   return list.find((item) => item.value === value)?.label ?? fallback ?? value
@@ -20,6 +20,15 @@ function buildPrompt({ translation, denomination, userRole, occasion, duration, 
 Eres un asistente teológico experto diseñado para apoyar a pastores y líderes cristianos hispanohablantes en la preparación de sus mensajes. NO reemplazas al predicador — eres una herramienta que estructura, investiga y sugiere para que el pastor pueda enfocarse en la guía del Espíritu Santo y su conexión personal con la congregación.
 
 IMPORTANTE: Sé conciso y directo. El desarrollo de cada punto del sermón debe ser 1 párrafo (no 2-3). Las ilustraciones deben ser breves (2-3 oraciones). Prioriza calidad sobre extensión.
+
+LÍMITES ESTRICTOS DE EXTENSIÓN:
+- Desarrollo de cada punto del sermón: MÁXIMO 80 palabras.
+- Ilustraciones: MÁXIMO 40 palabras.
+- Aplicación de cada punto: MÁXIMO 50 palabras.
+- Reflexión del devocional: MÁXIMO 150 palabras.
+- Cada post de redes: MÁXIMO 50 palabras.
+- Oración de cierre: MÁXIMO 80 palabras.
+Estos límites son obligatorios. Un output más corto y preciso es mejor que uno largo y truncado.
 
 REGLAS FUNDAMENTALES:
 1. SIEMPRE usa la traducción bíblica que el usuario seleccionó: ${translation}. Cita los versículos EXACTAMENTE como aparecen en esa traducción.
@@ -94,6 +103,27 @@ function cleanJsonResponse(text) {
     cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
   }
   return cleaned.trim()
+}
+
+function repairTruncatedJson(text) {
+  const lastBraceIndex = text.lastIndexOf('}')
+  if (lastBraceIndex === -1) return null
+
+  let candidate = text.slice(0, lastBraceIndex + 1)
+
+  const openBraces = (candidate.match(/{/g) || []).length
+  const closeBraces = (candidate.match(/}/g) || []).length
+  const openBrackets = (candidate.match(/\[/g) || []).length
+  const closeBrackets = (candidate.match(/\]/g) || []).length
+
+  candidate += ']'.repeat(Math.max(openBrackets - closeBrackets, 0))
+  candidate += '}'.repeat(Math.max(openBraces - closeBraces, 0))
+
+  try {
+    return JSON.parse(candidate)
+  } catch {
+    return null
+  }
 }
 
 export default async function handler(req, res) {
@@ -185,12 +215,19 @@ export default async function handler(req, res) {
     const rawText = data?.content?.[0]?.text ?? ''
     usage = data?.usage
 
+    const cleanedText = cleanJsonResponse(rawText)
     try {
-      parsed = JSON.parse(cleanJsonResponse(rawText))
+      parsed = JSON.parse(cleanedText)
     } catch (parseErr) {
-      console.error('Error parseando JSON de Claude:', parseErr, rawText)
-      res.status(502).json({ error: 'No se pudo interpretar la respuesta de la IA. Intenta de nuevo.' })
-      return
+      const repaired = repairTruncatedJson(cleanedText)
+      if (repaired) {
+        console.warn('Respuesta de Claude truncada: se reparó el JSON recortando el contenido incompleto.')
+        parsed = repaired
+      } else {
+        console.error('Error parseando JSON de Claude:', parseErr, rawText)
+        res.status(502).json({ error: 'No se pudo interpretar la respuesta de la IA. Intenta de nuevo.' })
+        return
+      }
     }
   } catch (err) {
     console.error('Error llamando a la API de Anthropic:', err)
