@@ -102,8 +102,8 @@ export function Dashboard() {
             return (
               <Card key={generation.id}>
                 <CardContent className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Badge variant="secondary">
                         {inputType?.icon} {inputType?.label ?? generation.input_type}
                       </Badge>

@@ -85,11 +85,20 @@ export function Result() {
       </div>
 
       <Tabs defaultValue="sermon">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="sermon">Sermón</TabsTrigger>
-          <TabsTrigger value="devocional">Devocional</TabsTrigger>
-          <TabsTrigger value="redes">Redes Sociales</TabsTrigger>
-          <TabsTrigger value="oracion">Oración</TabsTrigger>
+        <TabsList className="grid h-auto! w-full grid-cols-2 gap-1 sm:h-9! sm:grid-cols-4 sm:gap-0">
+          <TabsTrigger value="sermon" className="text-xs sm:text-sm">
+            Sermón
+          </TabsTrigger>
+          <TabsTrigger value="devocional" className="text-xs sm:text-sm">
+            Devocional
+          </TabsTrigger>
+          <TabsTrigger value="redes" className="text-xs sm:text-sm">
+            <span className="sm:hidden">Redes</span>
+            <span className="hidden sm:inline">Redes Sociales</span>
+          </TabsTrigger>
+          <TabsTrigger value="oracion" className="text-xs sm:text-sm">
+            Oración
+          </TabsTrigger>
         </TabsList>
 
         {/* Tab 1 — Sermón */}
@@ -221,7 +230,7 @@ export function Result() {
           <div className="flex justify-end">
             <CopyButton getText={() => oracion_cierre ?? ''} label="Copiar oración" />
           </div>
-          <div className="rounded-lg bg-primary/5 p-8">
+          <div className="rounded-lg bg-primary/5 p-4 sm:p-8">
             <p className="whitespace-pre-line text-lg leading-relaxed text-foreground">{oracion_cierre}</p>
           </div>
         </TabsContent>

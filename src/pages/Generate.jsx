@@ -166,7 +166,7 @@ export function Generate() {
         </div>
       )}
 
-      <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {INPUT_TYPES.map((type) => (
           <Card
             key={type.value}
@@ -177,9 +177,9 @@ export function Generate() {
             )}
           >
             <CardHeader>
-              <span className="text-3xl">{type.icon}</span>
-              <CardTitle className="mt-2 text-base">{type.label}</CardTitle>
-              <CardDescription className="text-xs">{type.placeholder}</CardDescription>
+              <span className="text-2xl sm:text-3xl">{type.icon}</span>
+              <CardTitle className="mt-2 text-sm sm:text-base">{type.label}</CardTitle>
+              <CardDescription className="text-[11px] sm:text-xs">{type.placeholder}</CardDescription>
             </CardHeader>
           </Card>
         ))}

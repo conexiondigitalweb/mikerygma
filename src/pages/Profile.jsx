@@ -307,9 +307,9 @@ export function Profile() {
 
 function ProfileRow({ label, value }) {
   return (
-    <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
       <span className="text-sm font-medium text-foreground">{label}</span>
-      <span className="text-sm text-muted-foreground">{value || '—'}</span>
+      <span className="text-sm text-muted-foreground sm:text-right">{value || '—'}</span>
     </div>
   )
 }
