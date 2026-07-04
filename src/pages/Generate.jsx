@@ -166,7 +166,7 @@ export function Generate() {
         </div>
       )}
 
-      <div className="mt-8 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
         {INPUT_TYPES.map((type) => (
           <Card
             key={type.value}
@@ -186,13 +186,13 @@ export function Generate() {
       </div>
 
       {mode && (
-        <div className="mt-8 space-y-6 rounded-xl border border-border bg-card p-6 shadow-sm">
+        <div className="mt-8 space-y-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6">
           {isYoutube ? (
             <div className="space-y-3">
               <Label htmlFor="youtube-url">
                 {INPUT_TYPES.find((t) => t.value === mode)?.label}
               </Label>
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   id="youtube-url"
                   type="url"
@@ -213,17 +213,17 @@ export function Generate() {
 
               {transcribing && (
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-secondary border-t-primary" />
+                  <div className="h-5 w-5 shrink-0 animate-spin rounded-full border-2 border-secondary border-t-primary" />
                   Transcribiendo la prédica...
                 </div>
               )}
 
-              {transcribeError && <p className="text-sm text-destructive">{transcribeError}</p>}
+              {transcribeError && <p className="text-sm break-words text-destructive">{transcribeError}</p>}
 
               {hasTranscript && (
                 <div className="space-y-2 rounded-md bg-secondary/40 p-4">
                   <Badge variant="secondary">Transcripción completa: {transcriptWordCount} palabras</Badge>
-                  <p className="text-sm text-muted-foreground">{transcriptPreview}…</p>
+                  <p className="text-sm break-words text-muted-foreground">{transcriptPreview}…</p>
                 </div>
               )}
             </div>

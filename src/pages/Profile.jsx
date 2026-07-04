@@ -104,13 +104,13 @@ export function Profile() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-16">
       <Card>
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
+        <CardHeader className="flex flex-row flex-wrap items-start justify-between gap-4">
+          <div className="min-w-0 break-words">
             <CardTitle className="text-2xl">Mi perfil</CardTitle>
-            <CardDescription>{user?.email}</CardDescription>
+            <CardDescription className="break-words">{user?.email}</CardDescription>
           </div>
           {!editing && (
-            <Button variant="outline" size="sm" onClick={startEditing}>
+            <Button variant="outline" size="sm" className="shrink-0" onClick={startEditing}>
               Editar perfil
             </Button>
           )}
@@ -291,7 +291,7 @@ export function Profile() {
               </div>
               <ProfileRow label="Tono preferido" value={pastoralToneLabel} />
               <ProfileRow label="Audiencia principal" value={targetAudienceLabel} />
-              <div>
+              <div className="break-words">
                 <span className="text-sm font-medium text-foreground">Instrucciones permanentes</span>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {profile?.pastoral_instructions || '—'}
@@ -308,8 +308,8 @@ export function Profile() {
 function ProfileRow({ label, value }) {
   return (
     <div className="flex flex-col gap-0.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-      <span className="text-sm font-medium text-foreground">{label}</span>
-      <span className="text-sm text-muted-foreground sm:text-right">{value || '—'}</span>
+      <span className="shrink-0 text-sm font-medium text-foreground">{label}</span>
+      <span className="break-words text-sm text-muted-foreground sm:text-right">{value || '—'}</span>
     </div>
   )
 }

@@ -72,7 +72,7 @@ export function Result() {
   return (
     <div className="mx-auto max-w-4xl px-4 py-12">
       <div className="mb-8 flex flex-wrap items-center justify-between gap-4">
-        <div>
+        <div className="min-w-0 break-words">
           <h1 className="text-2xl font-bold text-foreground">Tu kerygma está listo</h1>
           <p className="text-sm text-muted-foreground">{sermon?.pasaje_central ?? sermon?.titulo}</p>
         </div>
@@ -102,7 +102,7 @@ export function Result() {
         </TabsList>
 
         {/* Tab 1 — Sermón */}
-        <TabsContent value="sermon" className="space-y-6">
+        <TabsContent value="sermon" className="space-y-6 break-words">
           <div className="flex justify-end">
             <CopyButton getText={() => formatSermonText(sermon)} label="Copiar sermón completo" />
           </div>
@@ -181,7 +181,7 @@ export function Result() {
         </TabsContent>
 
         {/* Tab 2 — Devocional */}
-        <TabsContent value="devocional" className="space-y-6">
+        <TabsContent value="devocional" className="space-y-6 break-words">
           <div className="flex justify-end">
             <CopyButton getText={() => formatDevocionalText(devocional)} label="Copiar devocional" />
           </div>
@@ -204,7 +204,7 @@ export function Result() {
         </TabsContent>
 
         {/* Tab 3 — Redes Sociales */}
-        <TabsContent value="redes" className="grid gap-4 sm:grid-cols-1">
+        <TabsContent value="redes" className="grid gap-4 break-words sm:grid-cols-1">
           {Object.entries(SOCIAL_META).map(([key, meta]) => {
             const post = redes?.[key]
             if (!post) return null
@@ -226,7 +226,7 @@ export function Result() {
         </TabsContent>
 
         {/* Tab 4 — Oración */}
-        <TabsContent value="oracion" className="space-y-6">
+        <TabsContent value="oracion" className="space-y-6 break-words">
           <div className="flex justify-end">
             <CopyButton getText={() => oracion_cierre ?? ''} label="Copiar oración" />
           </div>

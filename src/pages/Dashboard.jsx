@@ -67,7 +67,7 @@ export function Dashboard() {
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-16">
-      <h1 className="text-3xl font-bold text-foreground">
+      <h1 className="text-3xl font-bold break-words text-foreground">
         {loading ? 'Bienvenido' : `Bienvenido, ${profile?.full_name?.split(' ')[0] ?? 'de nuevo'}`}
       </h1>
       <p className="mt-2 text-muted-foreground">

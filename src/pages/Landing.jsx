@@ -101,7 +101,7 @@ export function Landing() {
       <section className="px-4 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-3xl font-bold text-foreground">Cómo funciona</h2>
-          <div className="mt-12 grid gap-8 sm:grid-cols-3">
+          <div className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-3 sm:gap-8">
             {STEPS.map((step, i) => (
               <div key={step.title} className="text-center">
                 <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-primary/10 text-primary">
@@ -120,7 +120,7 @@ export function Landing() {
       <section className="bg-secondary/40 px-4 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-3xl font-bold text-foreground">Qué genera MiKerygma</h2>
-          <div className="mt-12 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-12 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
             {OUTPUTS.map((output) => (
               <Card key={output.title}>
                 <CardHeader>
@@ -138,7 +138,7 @@ export function Landing() {
       <section className="px-4 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-3xl font-bold text-foreground">3 formas de empezar</h2>
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+          <div className="mt-12 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-6">
             {START_MODES.map((mode) => (
               <Card key={mode.title} className="border-primary/20">
                 <CardHeader>
@@ -169,7 +169,7 @@ export function Landing() {
 
       {/* Credibilidad */}
       <section className="px-4 py-16">
-        <div className="mx-auto max-w-3xl rounded-xl border border-border bg-card p-8 text-center shadow-sm">
+        <div className="mx-auto max-w-3xl rounded-xl border border-border bg-card p-4 text-center shadow-sm sm:p-8">
           <p className="text-lg text-foreground">
             Construido por un autor cristiano con más de un año produciendo devocionales diarios.
           </p>
@@ -181,7 +181,7 @@ export function Landing() {
       <section className="px-4 py-20">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-3xl font-bold text-foreground">Planes</h2>
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
+          <div className="mt-12 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-6">
             {PLANS.map((plan) => (
               <Card
                 key={plan.name}
