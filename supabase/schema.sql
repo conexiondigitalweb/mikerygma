@@ -15,7 +15,7 @@ CREATE TABLE profiles (
   church_name TEXT,
   plan TEXT DEFAULT 'free', -- free, mensajero ($9/mes), proclamador ($19/mes)
   generations_used INTEGER DEFAULT 0,
-  generations_limit INTEGER DEFAULT 5, -- free=5, mensajero=50, proclamador=ilimitado (-1)
+  generations_limit INTEGER DEFAULT 3, -- free=3, mensajero=15, proclamador=40
   pastoral_tone TEXT, -- pastoral_calido, profetico_desafiante, academico_reflexivo, evangelistico, conversacional
   target_audience TEXT, -- general, jovenes, mujeres, familias, adultos_mayores, profesionales, rural
   pastoral_instructions TEXT, -- instrucciones permanentes de estilo, máximo 1000 caracteres (validado en frontend)

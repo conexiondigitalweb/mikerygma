@@ -1,10 +1,20 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { useAuth } from '@/hooks/useAuth'
+import { supabase } from '@/lib/supabase'
+import { canUseFeature } from '@/lib/planHelpers'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { CopyButton } from '@/components/CopyButton'
+import { UpgradePrompt } from '@/components/UpgradePrompt'
+
+const WATERMARK = '\n\n— Generado con MiKerygma.com'
+
+function withWatermark(text, hasWatermark) {
+  return hasWatermark ? `${text}${WATERMARK}` : text
+}
 
 function formatSermonText(sermon) {
   if (!sermon) return ''
@@ -59,15 +69,30 @@ const SOCIAL_META = {
 export function Result() {
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const result = location.state?.result
+  const [userPlan, setUserPlan] = useState('free')
 
   useEffect(() => {
     if (!result) navigate('/dashboard', { replace: true })
   }, [result, navigate])
 
+  useEffect(() => {
+    if (!user) return
+    supabase
+      .from('profiles')
+      .select('plan')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        if (data?.plan) setUserPlan(data.plan)
+      })
+  }, [user])
+
   if (!result) return null
 
   const { sermon, devocional, redes, oracion_cierre } = result
+  const hasWatermark = canUseFeature(userPlan, 'watermark')
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-12">
@@ -104,7 +129,7 @@ export function Result() {
         {/* Tab 1 — Sermón */}
         <TabsContent value="sermon" className="space-y-6 break-words">
           <div className="flex justify-end">
-            <CopyButton getText={() => formatSermonText(sermon)} label="Copiar sermón completo" />
+            <CopyButton getText={() => withWatermark(formatSermonText(sermon), hasWatermark)} label="Copiar sermón completo" />
           </div>
 
           <div>
@@ -183,7 +208,7 @@ export function Result() {
         {/* Tab 2 — Devocional */}
         <TabsContent value="devocional" className="space-y-6 break-words">
           <div className="flex justify-end">
-            <CopyButton getText={() => formatDevocionalText(devocional)} label="Copiar devocional" />
+            <CopyButton getText={() => withWatermark(formatDevocionalText(devocional), hasWatermark)} label="Copiar devocional" />
           </div>
 
           <blockquote className="rounded-md border-l-4 border-primary bg-secondary/40 px-4 py-3 text-lg font-medium italic text-foreground">
@@ -215,7 +240,12 @@ export function Result() {
                     <Badge className={meta.badgeClass} variant="secondary">
                       {meta.label}
                     </Badge>
-                    <CopyButton getText={() => `${post.texto}\n\n${(post.hashtags ?? []).join(' ')}`} label="Copiar" />
+                    <CopyButton
+                      getText={() =>
+                        withWatermark(`${post.texto}\n\n${(post.hashtags ?? []).join(' ')}`, hasWatermark)
+                      }
+                      label="Copiar"
+                    />
                   </div>
                   <p className="text-foreground">{post.texto}</p>
                   <p className="text-sm text-primary">{(post.hashtags ?? []).join(' ')}</p>
@@ -228,13 +258,30 @@ export function Result() {
         {/* Tab 4 — Oración */}
         <TabsContent value="oracion" className="space-y-6 break-words">
           <div className="flex justify-end">
-            <CopyButton getText={() => oracion_cierre ?? ''} label="Copiar oración" />
+            <CopyButton getText={() => withWatermark(oracion_cierre ?? '', hasWatermark)} label="Copiar oración" />
           </div>
           <div className="rounded-lg bg-primary/5 p-4 sm:p-8">
             <p className="whitespace-pre-line text-lg leading-relaxed text-foreground">{oracion_cierre}</p>
           </div>
         </TabsContent>
       </Tabs>
+
+      {userPlan === 'free' && (
+        <UpgradePrompt
+          variant="banner"
+          requiredPlan="mensajero"
+          message="Este mensaje fue generado con perfil básico. Con tu ADN Pastoral configurado, sonaría más a ti. Desbloquea con el Plan Mensajero →"
+          className="mt-8"
+        />
+      )}
+      {userPlan === 'mensajero' && (
+        <UpgradePrompt
+          variant="banner"
+          requiredPlan="proclamador"
+          message="¿Sabías que puedes exportar tus mensajes a PDF? Disponible en el Plan Proclamador →"
+          className="mt-8"
+        />
+      )}
     </div>
   )
 }

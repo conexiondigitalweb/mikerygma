@@ -3,10 +3,14 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { INPUT_TYPES, OCCASIONS } from '@/lib/constants'
+import { canUseFeature } from '@/lib/planHelpers'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { GenerationCounter } from '@/components/GenerationCounter'
+import { UpgradePrompt } from '@/components/UpgradePrompt'
+
+const FREE_HISTORY_LIMIT = 3
 
 function truncate(text, length = 100) {
   if (!text) return ''
@@ -26,7 +30,7 @@ export function Dashboard() {
 
     supabase
       .from('profiles')
-      .select('full_name, generations_used, generations_limit')
+      .select('full_name, generations_used, generations_limit, plan')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
@@ -65,6 +69,11 @@ export function Dashboard() {
     })
   }
 
+  const userPlan = profile?.plan ?? 'free'
+  const hasFullHistory = canUseFeature(userPlan, 'full_history')
+  const visibleGenerations = hasFullHistory ? generations : generations.slice(0, FREE_HISTORY_LIMIT)
+  const hasMoreHidden = !hasFullHistory && generations.length > FREE_HISTORY_LIMIT
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-16">
       <h1 className="text-3xl font-bold break-words text-foreground">
@@ -75,8 +84,15 @@ export function Dashboard() {
       </p>
 
       {!loading && profile && (
-        <div className="mt-6">
+        <div className="mt-6 space-y-3">
           <GenerationCounter used={profile.generations_used} limit={profile.generations_limit} />
+          {userPlan === 'free' && (
+            <UpgradePrompt
+              variant="inline"
+              requiredPlan="mensajero"
+              message="¿Necesitas más? Plan Mensajero: 15 generaciones/mes + ADN Pastoral + YouTube"
+            />
+          )}
         </div>
       )}
 
@@ -96,7 +112,7 @@ export function Dashboard() {
         )}
 
         <div className="mt-4 space-y-3">
-          {generations.map((generation) => {
+          {visibleGenerations.map((generation) => {
             const inputType = INPUT_TYPES.find((t) => t.value === generation.input_type)
             const occasion = OCCASIONS.find((o) => o.value === generation.occasion)
             return (
@@ -128,6 +144,15 @@ export function Dashboard() {
             )
           })}
         </div>
+
+        {hasMoreHidden && (
+          <UpgradePrompt
+            variant="inline"
+            requiredPlan="mensajero"
+            message="Tu historial completo tiene más generaciones."
+            className="mt-4"
+          />
+        )}
       </div>
     </div>
   )

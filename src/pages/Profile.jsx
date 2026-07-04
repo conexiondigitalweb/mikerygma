@@ -14,6 +14,7 @@ import {
   APPLICATION_TYPES,
   PASTORAL_CLOSINGS,
 } from '@/lib/constants'
+import { canUseFeature } from '@/lib/planHelpers'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +23,8 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+import { UpgradePrompt } from '@/components/UpgradePrompt'
+import { cn } from '@/lib/utils'
 
 const PASTORAL_INSTRUCTIONS_MAX = 1000
 const PHRASES_TO_AVOID_MAX = 500
@@ -125,6 +128,9 @@ export function Profile() {
     return <div className="px-4 py-16 text-center text-muted-foreground">Cargando...</div>
   }
 
+  const userPlan = profile?.plan ?? 'free'
+  const hasFullAdn = canUseFeature(userPlan, 'full_adn_pastoral')
+
   const denominationLabel = DENOMINATIONS.find((d) => d.value === profile?.denomination)?.label
   const roleLabel = ROLES.find((r) => r.value === profile?.role)?.label
   const translationLabel = TRANSLATIONS.find((t) => t.value === profile?.preferred_translation)?.label
@@ -174,6 +180,14 @@ export function Profile() {
                 options={TRANSLATIONS}
               />
 
+              <LabeledSelect
+                label="Denominación"
+                placeholder="Selecciona tu denominación"
+                value={denomination}
+                onValueChange={setDenomination}
+                options={DENOMINATIONS}
+              />
+
               <div className="space-y-2">
                 <Label htmlFor="country">País</Label>
                 <Input
@@ -200,27 +214,25 @@ export function Profile() {
                 description="Define qué verdad bíblica suele ser el eje de tu ministerio y cómo enseñas."
               />
 
-              <LabeledSelect
-                label="Centro teológico"
-                placeholder="Selecciona tu centro teológico"
-                value={theologicalCenter}
-                onValueChange={setTheologicalCenter}
-                options={THEOLOGICAL_CENTERS}
-              />
-              <LabeledSelect
-                label="Estilo de enseñanza"
-                placeholder="Selecciona tu estilo de enseñanza"
-                value={teachingStyle}
-                onValueChange={setTeachingStyle}
-                options={TEACHING_STYLES}
-              />
-              <LabeledSelect
-                label="Denominación"
-                placeholder="Selecciona tu denominación"
-                value={denomination}
-                onValueChange={setDenomination}
-                options={DENOMINATIONS}
-              />
+              <LockableGroup
+                locked={!hasFullAdn}
+                message="Configura tu ADN pastoral para que cada mensaje suene a ti. Disponible en el Plan Mensajero."
+              >
+                <LabeledSelect
+                  label="Centro teológico"
+                  placeholder="Selecciona tu centro teológico"
+                  value={theologicalCenter}
+                  onValueChange={setTheologicalCenter}
+                  options={THEOLOGICAL_CENTERS}
+                />
+                <LabeledSelect
+                  label="Estilo de enseñanza"
+                  placeholder="Selecciona tu estilo de enseñanza"
+                  value={teachingStyle}
+                  onValueChange={setTeachingStyle}
+                  options={TEACHING_STYLES}
+                />
+              </LockableGroup>
 
               <Separator />
 
@@ -229,34 +241,39 @@ export function Profile() {
                 description="Configura cómo te comunicas con tu congregación. Esto afecta el tono, las aplicaciones y los cierres de cada generación."
               />
 
-              <LabeledSelect
-                label="Tono preferido"
-                placeholder="Selecciona tu tono preferido"
-                value={pastoralTone}
-                onValueChange={setPastoralTone}
-                options={PASTORAL_TONES}
-              />
-              <LabeledSelect
-                label="Nivel de confrontación"
-                placeholder="Selecciona tu nivel de confrontación"
-                value={confrontationLevel}
-                onValueChange={setConfrontationLevel}
-                options={CONFRONTATION_LEVELS}
-              />
-              <LabeledSelect
-                label="Tipo de aplicación preferida"
-                placeholder="Selecciona el tipo de aplicación"
-                value={applicationType}
-                onValueChange={setApplicationType}
-                options={APPLICATION_TYPES}
-              />
-              <LabeledSelect
-                label="Forma de cierre"
-                placeholder="Selecciona cómo sueles cerrar"
-                value={pastoralClosing}
-                onValueChange={setPastoralClosing}
-                options={PASTORAL_CLOSINGS}
-              />
+              <LockableGroup
+                locked={!hasFullAdn}
+                message="Configura tu ADN pastoral para que cada mensaje suene a ti. Disponible en el Plan Mensajero."
+              >
+                <LabeledSelect
+                  label="Tono preferido"
+                  placeholder="Selecciona tu tono preferido"
+                  value={pastoralTone}
+                  onValueChange={setPastoralTone}
+                  options={PASTORAL_TONES}
+                />
+                <LabeledSelect
+                  label="Nivel de confrontación"
+                  placeholder="Selecciona tu nivel de confrontación"
+                  value={confrontationLevel}
+                  onValueChange={setConfrontationLevel}
+                  options={CONFRONTATION_LEVELS}
+                />
+                <LabeledSelect
+                  label="Tipo de aplicación preferida"
+                  placeholder="Selecciona el tipo de aplicación"
+                  value={applicationType}
+                  onValueChange={setApplicationType}
+                  options={APPLICATION_TYPES}
+                />
+                <LabeledSelect
+                  label="Forma de cierre"
+                  placeholder="Selecciona cómo sueles cerrar"
+                  value={pastoralClosing}
+                  onValueChange={setPastoralClosing}
+                  options={PASTORAL_CLOSINGS}
+                />
+              </LockableGroup>
 
               <Separator />
 
@@ -265,48 +282,53 @@ export function Profile() {
                 description="Entre más específico seas, más personalizado será tu contenido. Estas preferencias se aplican automáticamente a cada generación."
               />
 
-              <LabeledSelect
-                label="Audiencia principal"
-                placeholder="Selecciona tu audiencia principal"
-                value={targetAudience}
-                onValueChange={setTargetAudience}
-                options={TARGET_AUDIENCES}
-              />
+              <LockableGroup
+                locked={!hasFullAdn}
+                message="Configura tu ADN pastoral para que cada mensaje suene a ti. Disponible en el Plan Mensajero."
+              >
+                <LabeledSelect
+                  label="Audiencia principal"
+                  placeholder="Selecciona tu audiencia principal"
+                  value={targetAudience}
+                  onValueChange={setTargetAudience}
+                  options={TARGET_AUDIENCES}
+                />
 
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="phrases-to-avoid">Frases o enfoques que prefieres evitar</Label>
-                  <span className="text-xs text-muted-foreground">
-                    {phrasesToAvoid.length}/{PHRASES_TO_AVOID_MAX}
-                  </span>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="phrases-to-avoid">Frases o enfoques que prefieres evitar</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {phrasesToAvoid.length}/{PHRASES_TO_AVOID_MAX}
+                    </span>
+                  </div>
+                  <Textarea
+                    id="phrases-to-avoid"
+                    rows={3}
+                    maxLength={PHRASES_TO_AVOID_MAX}
+                    placeholder="Ej: Evito frases como 'Dios tiene un plan perfecto para ti' sin contexto. No uso lenguaje que culpabilice a quienes sufren."
+                    value={phrasesToAvoid}
+                    onChange={(e) => setPhrasesToAvoid(e.target.value)}
+                  />
                 </div>
-                <Textarea
-                  id="phrases-to-avoid"
-                  rows={3}
-                  maxLength={PHRASES_TO_AVOID_MAX}
-                  placeholder="Ej: Evito frases como 'Dios tiene un plan perfecto para ti' sin contexto. No uso lenguaje que culpabilice a quienes sufren."
-                  value={phrasesToAvoid}
-                  onChange={(e) => setPhrasesToAvoid(e.target.value)}
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="pastoral-instructions">
-                  Describe tu estilo y las características de tu congregación. Entre más específico seas, más
-                  personalizado será tu mensaje.
-                </Label>
-                <Textarea
-                  id="pastoral-instructions"
-                  rows={4}
-                  maxLength={PASTORAL_INSTRUCTIONS_MAX}
-                  placeholder="Ej: Mi estilo es conversacional, uso muchas preguntas retóricas. Mi congregación es de clase trabajadora en una ciudad pequeña de Colombia. Prefiero ilustraciones de la vida cotidiana y del campo. Siempre incluyo un momento de oración guiada."
-                  value={pastoralInstructions}
-                  onChange={(e) => setPastoralInstructions(e.target.value)}
-                />
-                <p className="text-right text-xs text-muted-foreground">
-                  {pastoralInstructions.length}/{PASTORAL_INSTRUCTIONS_MAX}
-                </p>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="pastoral-instructions">
+                    Describe tu estilo y las características de tu congregación. Entre más específico seas, más
+                    personalizado será tu mensaje.
+                  </Label>
+                  <Textarea
+                    id="pastoral-instructions"
+                    rows={4}
+                    maxLength={PASTORAL_INSTRUCTIONS_MAX}
+                    placeholder="Ej: Mi estilo es conversacional, uso muchas preguntas retóricas. Mi congregación es de clase trabajadora en una ciudad pequeña de Colombia. Prefiero ilustraciones de la vida cotidiana y del campo. Siempre incluyo un momento de oración guiada."
+                    value={pastoralInstructions}
+                    onChange={(e) => setPastoralInstructions(e.target.value)}
+                  />
+                  <p className="text-right text-xs text-muted-foreground">
+                    {pastoralInstructions.length}/{PASTORAL_INSTRUCTIONS_MAX}
+                  </p>
+                </div>
+              </LockableGroup>
 
               {error && <p className="text-sm text-destructive">{error}</p>}
 
@@ -324,6 +346,7 @@ export function Profile() {
               <ProfileRow label="Nombre completo" value={profile?.full_name} />
               <ProfileRow label="Rol" value={roleLabel} />
               <ProfileRow label="Traducción preferida" value={translationLabel} />
+              <ProfileRow label="Denominación" value={denominationLabel} />
               <ProfileRow label="País" value={profile?.country} />
               <ProfileRow label="Iglesia" value={profile?.church_name || '—'} />
               <Separator />
@@ -338,9 +361,13 @@ export function Profile() {
                 title="Tu identidad ministerial"
                 description="Define qué verdad bíblica suele ser el eje de tu ministerio y cómo enseñas."
               />
-              <ProfileRow label="Centro teológico" value={theologicalCenterLabel} />
-              <ProfileRow label="Estilo de enseñanza" value={teachingStyleLabel} />
-              <ProfileRow label="Denominación" value={denominationLabel} />
+              <LockableGroup
+                locked={!hasFullAdn}
+                message="Configura tu ADN pastoral para que cada mensaje suene a ti. Disponible en el Plan Mensajero."
+              >
+                <ProfileRow label="Centro teológico" value={theologicalCenterLabel} />
+                <ProfileRow label="Estilo de enseñanza" value={teachingStyleLabel} />
+              </LockableGroup>
 
               <Separator />
 
@@ -348,10 +375,15 @@ export function Profile() {
                 title="Tu forma de comunicar"
                 description="Configura cómo te comunicas con tu congregación. Esto afecta el tono, las aplicaciones y los cierres de cada generación."
               />
-              <ProfileRow label="Tono preferido" value={pastoralToneLabel} />
-              <ProfileRow label="Nivel de confrontación" value={confrontationLevelLabel} />
-              <ProfileRow label="Tipo de aplicación preferida" value={applicationTypeLabel} />
-              <ProfileRow label="Forma de cierre" value={pastoralClosingLabel} />
+              <LockableGroup
+                locked={!hasFullAdn}
+                message="Configura tu ADN pastoral para que cada mensaje suene a ti. Disponible en el Plan Mensajero."
+              >
+                <ProfileRow label="Tono preferido" value={pastoralToneLabel} />
+                <ProfileRow label="Nivel de confrontación" value={confrontationLevelLabel} />
+                <ProfileRow label="Tipo de aplicación preferida" value={applicationTypeLabel} />
+                <ProfileRow label="Forma de cierre" value={pastoralClosingLabel} />
+              </LockableGroup>
 
               <Separator />
 
@@ -359,19 +391,24 @@ export function Profile() {
                 title="Personalización avanzada"
                 description="Entre más específico seas, más personalizado será tu contenido. Estas preferencias se aplican automáticamente a cada generación."
               />
-              <ProfileRow label="Audiencia principal" value={targetAudienceLabel} />
-              <div className="break-words">
-                <span className="text-sm font-medium text-foreground">Frases o enfoques a evitar</span>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {profile?.phrases_to_avoid || '—'}
-                </p>
-              </div>
-              <div className="break-words">
-                <span className="text-sm font-medium text-foreground">Instrucciones permanentes</span>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  {profile?.pastoral_instructions || '—'}
-                </p>
-              </div>
+              <LockableGroup
+                locked={!hasFullAdn}
+                message="Configura tu ADN pastoral para que cada mensaje suene a ti. Disponible en el Plan Mensajero."
+              >
+                <ProfileRow label="Audiencia principal" value={targetAudienceLabel} />
+                <div className="break-words">
+                  <span className="text-sm font-medium text-foreground">Frases o enfoques a evitar</span>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {profile?.phrases_to_avoid || '—'}
+                  </p>
+                </div>
+                <div className="break-words">
+                  <span className="text-sm font-medium text-foreground">Instrucciones permanentes</span>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {profile?.pastoral_instructions || '—'}
+                  </p>
+                </div>
+              </LockableGroup>
             </div>
           )}
         </CardContent>
@@ -385,6 +422,17 @@ function GroupHeader({ title, description }) {
     <div>
       <h3 className="text-lg font-semibold text-foreground">{title}</h3>
       <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+function LockableGroup({ locked, message, children }) {
+  return (
+    <div className="relative">
+      <div className={cn('space-y-4', locked && 'pointer-events-none opacity-50 select-none')}>
+        {children}
+      </div>
+      {locked && <UpgradePrompt variant="overlay" message={message} requiredPlan="mensajero" />}
     </div>
   )
 }

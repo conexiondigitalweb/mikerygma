@@ -11,10 +11,16 @@ import {
   APPLICATION_TYPES,
   PASTORAL_CLOSINGS,
 } from '../src/lib/constants.js'
+import { canUseFeature } from '../src/lib/planHelpers.js'
 
 const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_TOKENS = 3500
+
+const MODE_FEATURE_KEYS = {
+  situacion: 'mode_situacion',
+  youtube: 'mode_youtube',
+}
 
 function labelFor(list, value, fallback) {
   return list.find((item) => item.value === value)?.label ?? fallback ?? value
@@ -385,7 +391,7 @@ export default async function handler(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('role, denomination, generations_used, generations_limit, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
+      .select('role, denomination, generations_used, generations_limit, plan, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
       .eq('id', user_id)
       .single()
 
@@ -408,6 +414,18 @@ export default async function handler(req, res) {
     return
   }
 
+  const userPlan = profile.plan ?? 'free'
+
+  const requiredFeature = MODE_FEATURE_KEYS[input_type]
+  if (requiredFeature && !canUseFeature(userPlan, requiredFeature)) {
+    res.status(403).json({ error: 'Esta función requiere el Plan Mensajero' })
+    return
+  }
+
+  const allowCustomInstructions = canUseFeature(userPlan, 'custom_instructions')
+  const allowFullAdn = canUseFeature(userPlan, 'full_adn_pastoral')
+  const effectiveCustomInstructions = allowCustomInstructions ? custom_instructions?.trim() || null : null
+
   const prompt = buildPrompt({
     translation,
     denomination,
@@ -416,16 +434,16 @@ export default async function handler(req, res) {
     duration,
     inputType: input_type,
     inputText: input_text,
-    customInstructions: custom_instructions?.trim() || null,
-    theologicalCenter: profile.theological_center,
-    teachingStyle: profile.teaching_style,
-    confrontationLevel: profile.confrontation_level,
-    applicationType: profile.application_type,
-    pastoralClosing: profile.pastoral_closing,
-    pastoralTone: profile.pastoral_tone,
-    targetAudience: profile.target_audience,
-    phrasesToAvoid: profile.phrases_to_avoid,
-    pastoralInstructions: profile.pastoral_instructions,
+    customInstructions: effectiveCustomInstructions,
+    theologicalCenter: allowFullAdn ? profile.theological_center : null,
+    teachingStyle: allowFullAdn ? profile.teaching_style : null,
+    confrontationLevel: allowFullAdn ? profile.confrontation_level : null,
+    applicationType: allowFullAdn ? profile.application_type : null,
+    pastoralClosing: allowFullAdn ? profile.pastoral_closing : null,
+    pastoralTone: allowFullAdn ? profile.pastoral_tone : null,
+    targetAudience: allowFullAdn ? profile.target_audience : null,
+    phrasesToAvoid: allowFullAdn ? profile.phrases_to_avoid : null,
+    pastoralInstructions: allowFullAdn ? profile.pastoral_instructions : null,
   })
 
   let parsed
@@ -488,7 +506,7 @@ export default async function handler(req, res) {
         input_text,
         occasion,
         translation,
-        custom_instructions: custom_instructions?.trim() || null,
+        custom_instructions: effectiveCustomInstructions,
         output_sermon: parsed.sermon ?? null,
         output_devotional: parsed.devocional ?? null,
         output_social: parsed.redes ?? null,

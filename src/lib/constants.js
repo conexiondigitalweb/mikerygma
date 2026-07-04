@@ -115,9 +115,80 @@ export const PASTORAL_CLOSINGS = [
 ]
 
 export const PLANS = {
-  free: { name: 'Gratis', price: 0, generations: 5, features: ['Todas las funciones', 'Marca de agua en outputs'] },
-  mensajero: { name: 'Mensajero', price: 9, generations: 50, features: ['Sin marca de agua', 'Historial completo', 'Soporte por email'] },
-  proclamador: { name: 'Proclamador', price: 19, generations: -1, features: ['Generaciones ilimitadas', 'PDF descargable', 'Acceso anticipado'] },
+  free: {
+    name: 'Gratis',
+    tagline: 'Descubre tu copiloto',
+    price: 0,
+    generations: 3,
+    features: {
+      basic_profile: true,
+      full_adn_pastoral: false,
+      mode_pasaje: true,
+      mode_tema: true,
+      mode_situacion: false,
+      mode_youtube: false,
+      custom_instructions: false,
+      full_history: false,
+      watermark: true,
+      pdf_export: false,
+    },
+    display_features: [
+      '3 generaciones al mes',
+      'Perfil básico',
+      'Pasaje bíblico y tema',
+      'Marca de agua en outputs',
+    ],
+  },
+  mensajero: {
+    name: 'Mensajero',
+    tagline: 'Para el pastor comprometido',
+    price: 9,
+    generations: 15,
+    features: {
+      basic_profile: true,
+      full_adn_pastoral: true,
+      mode_pasaje: true,
+      mode_tema: true,
+      mode_situacion: true,
+      mode_youtube: true,
+      custom_instructions: true,
+      full_history: true,
+      watermark: false,
+      pdf_export: false,
+    },
+    display_features: [
+      '15 generaciones al mes',
+      'ADN Pastoral completo',
+      '4 modos de input',
+      'Instrucciones por generación',
+      'Historial completo',
+      'Sin marca de agua',
+    ],
+  },
+  proclamador: {
+    name: 'Proclamador',
+    tagline: 'Para ministerios en crecimiento',
+    price: 19,
+    generations: 40,
+    features: {
+      basic_profile: true,
+      full_adn_pastoral: true,
+      mode_pasaje: true,
+      mode_tema: true,
+      mode_situacion: true,
+      mode_youtube: true,
+      custom_instructions: true,
+      full_history: true,
+      watermark: false,
+      pdf_export: true,
+    },
+    display_features: [
+      '40 generaciones al mes',
+      'Todas las funciones',
+      'Exportación a PDF',
+      'Acceso anticipado a nuevas funciones',
+    ],
+  },
 }
 
 export const LOADING_MESSAGES = [

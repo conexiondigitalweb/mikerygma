@@ -1,8 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { INPUT_TYPES, TRANSLATIONS, OCCASIONS, DURATIONS, LOADING_MESSAGES } from '@/lib/constants'
+import { canUseFeature } from '@/lib/planHelpers'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -11,9 +13,17 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { GenerationCounter } from '@/components/GenerationCounter'
+import { UpgradePrompt } from '@/components/UpgradePrompt'
 import { cn } from '@/lib/utils'
 
 const CUSTOM_INSTRUCTIONS_MAX = 500
+
+const MODE_FEATURE_KEYS = {
+  pasaje: 'mode_pasaje',
+  tema: 'mode_tema',
+  situacion: 'mode_situacion',
+  youtube: 'mode_youtube',
+}
 
 export function Generate() {
   const { user } = useAuth()
@@ -37,12 +47,13 @@ export function Generate() {
   const [generating, setGenerating] = useState(false)
   const [error, setError] = useState('')
   const [messageIndex, setMessageIndex] = useState(0)
+  const [lockedModalFeature, setLockedModalFeature] = useState(null)
 
   useEffect(() => {
     if (!user) return
     supabase
       .from('profiles')
-      .select('preferred_translation, denomination, generations_used, generations_limit')
+      .select('preferred_translation, denomination, generations_used, generations_limit, plan')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
@@ -60,16 +71,24 @@ export function Generate() {
     return () => clearInterval(interval)
   }, [generating])
 
+  const userPlan = profile?.plan ?? 'free'
+
   const hasGenerationsLeft =
     !profile || profile.generations_limit === -1 || profile.generations_used < profile.generations_limit
 
-  const selectMode = (value) => {
-    setMode(value)
+  const selectMode = (type) => {
+    if (!canUseFeature(userPlan, MODE_FEATURE_KEYS[type.value])) {
+      setLockedModalFeature(`Modo ${type.label}`)
+      return
+    }
+    setMode(type.value)
     setInputText('')
     setYoutubeUrl('')
     setTranscribeError('')
     setTranscriptWordCount(0)
   }
+
+  const canUseCustomInstructions = canUseFeature(userPlan, 'custom_instructions')
 
   const handleTranscribe = async () => {
     if (!youtubeUrl.trim()) return
@@ -167,23 +186,43 @@ export function Generate() {
       )}
 
       <div className="mt-8 grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-6 lg:grid-cols-4">
-        {INPUT_TYPES.map((type) => (
-          <Card
-            key={type.value}
-            onClick={() => selectMode(type.value)}
-            className={cn(
-              'cursor-pointer transition-all hover:border-primary hover:shadow-md',
-              mode === type.value && 'border-primary ring-1 ring-primary shadow-md'
-            )}
-          >
-            <CardHeader>
-              <span className="text-2xl sm:text-3xl">{type.icon}</span>
-              <CardTitle className="mt-2 text-sm sm:text-base">{type.label}</CardTitle>
-              <CardDescription className="text-[11px] sm:text-xs">{type.placeholder}</CardDescription>
-            </CardHeader>
-          </Card>
-        ))}
+        {INPUT_TYPES.map((type) => {
+          const locked = !canUseFeature(userPlan, MODE_FEATURE_KEYS[type.value])
+          return (
+            <Card
+              key={type.value}
+              onClick={() => selectMode(type)}
+              className={cn(
+                'cursor-pointer transition-all hover:border-primary hover:shadow-md',
+                mode === type.value && 'border-primary ring-1 ring-primary shadow-md',
+                locked && 'opacity-60 grayscale hover:shadow-none'
+              )}
+            >
+              <CardHeader>
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-2xl sm:text-3xl">{type.icon}</span>
+                  {locked && (
+                    <Badge variant="secondary" className="gap-1 whitespace-nowrap">
+                      <Lock className="h-3 w-3" />
+                      Plan Mensajero
+                    </Badge>
+                  )}
+                </div>
+                <CardTitle className="mt-2 text-sm sm:text-base">{type.label}</CardTitle>
+                <CardDescription className="text-[11px] sm:text-xs">{type.placeholder}</CardDescription>
+              </CardHeader>
+            </Card>
+          )
+        })}
       </div>
+
+      <UpgradePrompt
+        variant="modal"
+        feature={lockedModalFeature ?? ''}
+        requiredPlan="mensajero"
+        open={!!lockedModalFeature}
+        onOpenChange={(open) => !open && setLockedModalFeature(null)}
+      />
 
       {mode && (
         <div className="mt-8 space-y-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6">
@@ -306,10 +345,18 @@ export function Generate() {
                   id="custom-instructions"
                   rows={3}
                   maxLength={CUSTOM_INSTRUCTIONS_MAX}
-                  placeholder="Ej: Enfócate en los jóvenes / Incluye referencias a la crisis económica / Quiero un tono más profético / Mi congregación está en proceso de duelo / Hazlo más reflexivo y menos didáctico"
+                  disabled={!canUseCustomInstructions}
+                  placeholder={
+                    canUseCustomInstructions
+                      ? 'Ej: Enfócate en los jóvenes / Incluye referencias a la crisis económica / Quiero un tono más profético / Mi congregación está en proceso de duelo / Hazlo más reflexivo y menos didáctico'
+                      : 'Personaliza cada generación — Plan Mensajero'
+                  }
                   value={customInstructions}
                   onChange={(e) => setCustomInstructions(e.target.value)}
                 />
+                {!canUseCustomInstructions && (
+                  <UpgradePrompt variant="inline" requiredPlan="mensajero" />
+                )}
               </div>
 
               {!hasGenerationsLeft && (
