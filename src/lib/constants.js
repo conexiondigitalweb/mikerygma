@@ -1,3 +1,10 @@
+export const ROLES = [
+  { value: 'pastor', label: 'Pastor' },
+  { value: 'lider', label: 'Líder' },
+  { value: 'creador', label: 'Creador de contenido' },
+  { value: 'otro', label: 'Otro' },
+]
+
 export const TRANSLATIONS = [
   { value: 'RVR1960', label: 'Reina Valera 1960', short: 'RVR60' },
   { value: 'NVI', label: 'Nueva Versión Internacional', short: 'NVI' },

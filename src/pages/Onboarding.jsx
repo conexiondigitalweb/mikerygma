@@ -2,19 +2,12 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { DENOMINATIONS, TRANSLATIONS } from '@/lib/constants'
+import { DENOMINATIONS, TRANSLATIONS, ROLES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
-
-const ROLES = [
-  { value: 'pastor', label: 'Pastor' },
-  { value: 'lider', label: 'Líder' },
-  { value: 'creador', label: 'Creador de contenido' },
-  { value: 'otro', label: 'Otro' },
-]
 
 export function Onboarding() {
   const { user } = useAuth()
