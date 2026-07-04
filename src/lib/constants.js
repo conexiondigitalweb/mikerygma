@@ -70,6 +70,50 @@ export const TARGET_AUDIENCES = [
   { value: 'rural', label: 'Comunidad rural' },
 ]
 
+export const THEOLOGICAL_CENTERS = [
+  { value: 'gracia', label: 'La gracia de Dios' },
+  { value: 'reino', label: 'El Reino de Dios' },
+  { value: 'discipulado', label: 'Discipulado y formación' },
+  { value: 'santidad', label: 'Santidad y vida consagrada' },
+  { value: 'evangelismo', label: 'Evangelismo y misión' },
+  { value: 'familia', label: 'Familia y relaciones' },
+  { value: 'justicia', label: 'Justicia social y compasión' },
+  { value: 'adoracion', label: 'Adoración y vida devocional' },
+  { value: 'esperanza', label: 'Esperanza y restauración' },
+]
+
+export const TEACHING_STYLES = [
+  { value: 'expositivo', label: 'Expositivo — análisis detallado del texto bíblico' },
+  { value: 'tematico', label: 'Temático — desarrollo de un tema con varios pasajes' },
+  { value: 'narrativo', label: 'Narrativo — cuenta la historia bíblica y la conecta con la vida' },
+  { value: 'pastoral', label: 'Pastoral — centrado en el cuidado y las necesidades de la congregación' },
+  { value: 'apologetico', label: 'Apologético — defiende la fe con argumentos y evidencias' },
+  { value: 'devocional', label: 'Devocional — reflexión íntima y personal' },
+]
+
+export const CONFRONTATION_LEVELS = [
+  { value: 'suave', label: 'Suave — invita a reflexionar sin presionar' },
+  { value: 'moderado', label: 'Moderado — señala con amor y claridad' },
+  { value: 'directo', label: 'Directo — confronta con firmeza y respeto' },
+  { value: 'profetico', label: 'Profético — desafía con urgencia y autoridad espiritual' },
+]
+
+export const APPLICATION_TYPES = [
+  { value: 'practica_diaria', label: 'Práctica diaria — acciones concretas para la semana' },
+  { value: 'introspectiva', label: 'Introspectiva — invita a la reflexión interior' },
+  { value: 'comunitaria', label: 'Comunitaria — fortalece la vida en comunidad' },
+  { value: 'evangelistica', label: 'Evangelística — motiva a compartir la fe' },
+  { value: 'familiar', label: 'Familiar — aplicable en el hogar y las relaciones' },
+]
+
+export const PASTORAL_CLOSINGS = [
+  { value: 'llamado', label: 'Llamado a decisión — invita a responder públicamente' },
+  { value: 'oracion_guiada', label: 'Oración guiada — cierra con una oración que el oyente repite' },
+  { value: 'reflexion', label: 'Reflexión silenciosa — deja un espacio para meditar' },
+  { value: 'desafio', label: 'Desafío práctico — propone una acción concreta' },
+  { value: 'consuelo', label: 'Consuelo y esperanza — cierra con una promesa de Dios' },
+]
+
 export const PLANS = {
   free: { name: 'Gratis', price: 0, generations: 5, features: ['Todas las funciones', 'Marca de agua en outputs'] },
   mensajero: { name: 'Mensajero', price: 9, generations: 50, features: ['Sin marca de agua', 'Historial completo', 'Soporte por email'] },

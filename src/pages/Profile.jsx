@@ -1,7 +1,19 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { ROLES, DENOMINATIONS, TRANSLATIONS, PLANS, PASTORAL_TONES, TARGET_AUDIENCES } from '@/lib/constants'
+import {
+  ROLES,
+  DENOMINATIONS,
+  TRANSLATIONS,
+  PLANS,
+  PASTORAL_TONES,
+  TARGET_AUDIENCES,
+  THEOLOGICAL_CENTERS,
+  TEACHING_STYLES,
+  CONFRONTATION_LEVELS,
+  APPLICATION_TYPES,
+  PASTORAL_CLOSINGS,
+} from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -12,6 +24,7 @@ import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
 
 const PASTORAL_INSTRUCTIONS_MAX = 1000
+const PHRASES_TO_AVOID_MAX = 500
 
 export function Profile() {
   const { user } = useAuth()
@@ -27,8 +40,14 @@ export function Profile() {
   const [translation, setTranslation] = useState('RVR1960')
   const [country, setCountry] = useState('')
   const [churchName, setChurchName] = useState('')
+  const [theologicalCenter, setTheologicalCenter] = useState('')
+  const [teachingStyle, setTeachingStyle] = useState('')
   const [pastoralTone, setPastoralTone] = useState('')
+  const [confrontationLevel, setConfrontationLevel] = useState('')
+  const [applicationType, setApplicationType] = useState('')
+  const [pastoralClosing, setPastoralClosing] = useState('')
   const [targetAudience, setTargetAudience] = useState('')
+  const [phrasesToAvoid, setPhrasesToAvoid] = useState('')
   const [pastoralInstructions, setPastoralInstructions] = useState('')
 
   useEffect(() => {
@@ -52,8 +71,14 @@ export function Profile() {
     setTranslation(profile?.preferred_translation ?? 'RVR1960')
     setCountry(profile?.country ?? '')
     setChurchName(profile?.church_name ?? '')
+    setTheologicalCenter(profile?.theological_center ?? '')
+    setTeachingStyle(profile?.teaching_style ?? '')
     setPastoralTone(profile?.pastoral_tone ?? '')
+    setConfrontationLevel(profile?.confrontation_level ?? '')
+    setApplicationType(profile?.application_type ?? '')
+    setPastoralClosing(profile?.pastoral_closing ?? '')
     setTargetAudience(profile?.target_audience ?? '')
+    setPhrasesToAvoid(profile?.phrases_to_avoid ?? '')
     setPastoralInstructions(profile?.pastoral_instructions ?? '')
     setError('')
     setEditing(true)
@@ -72,8 +97,14 @@ export function Profile() {
       preferred_translation: translation,
       country,
       church_name: churchName || null,
+      theological_center: theologicalCenter || null,
+      teaching_style: teachingStyle || null,
       pastoral_tone: pastoralTone || null,
+      confrontation_level: confrontationLevel || null,
+      application_type: applicationType || null,
+      pastoral_closing: pastoralClosing || null,
       target_audience: targetAudience || null,
+      phrases_to_avoid: phrasesToAvoid || null,
       pastoral_instructions: pastoralInstructions || null,
     }
 
@@ -98,7 +129,12 @@ export function Profile() {
   const roleLabel = ROLES.find((r) => r.value === profile?.role)?.label
   const translationLabel = TRANSLATIONS.find((t) => t.value === profile?.preferred_translation)?.label
   const planLabel = PLANS[profile?.plan]?.name ?? profile?.plan
+  const theologicalCenterLabel = THEOLOGICAL_CENTERS.find((t) => t.value === profile?.theological_center)?.label
+  const teachingStyleLabel = TEACHING_STYLES.find((t) => t.value === profile?.teaching_style)?.label
   const pastoralToneLabel = PASTORAL_TONES.find((t) => t.value === profile?.pastoral_tone)?.label
+  const confrontationLevelLabel = CONFRONTATION_LEVELS.find((c) => c.value === profile?.confrontation_level)?.label
+  const applicationTypeLabel = APPLICATION_TYPES.find((a) => a.value === profile?.application_type)?.label
+  const pastoralClosingLabel = PASTORAL_CLOSINGS.find((c) => c.value === profile?.pastoral_closing)?.label
   const targetAudienceLabel = TARGET_AUDIENCES.find((a) => a.value === profile?.target_audience)?.label
 
   return (
@@ -128,53 +164,15 @@ export function Profile() {
                 />
               </div>
 
-              <div className="space-y-2">
-                <Label>Rol</Label>
-                <Select value={role} onValueChange={setRole}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona tu rol" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map((r) => (
-                      <SelectItem key={r.value} value={r.value}>
-                        {r.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <LabeledSelect label="Rol" placeholder="Selecciona tu rol" value={role} onValueChange={setRole} options={ROLES} />
 
-              <div className="space-y-2">
-                <Label>Denominación</Label>
-                <Select value={denomination} onValueChange={setDenomination}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona tu denominación" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {DENOMINATIONS.map((d) => (
-                      <SelectItem key={d.value} value={d.value}>
-                        {d.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="space-y-2">
-                <Label>Traducción bíblica preferida</Label>
-                <Select value={translation} onValueChange={setTranslation}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona una traducción" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TRANSLATIONS.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <LabeledSelect
+                label="Traducción bíblica preferida"
+                placeholder="Selecciona una traducción"
+                value={translation}
+                onValueChange={setTranslation}
+                options={TRANSLATIONS}
+              />
 
               <div className="space-y-2">
                 <Label htmlFor="country">País</Label>
@@ -197,52 +195,106 @@ export function Profile() {
 
               <Separator />
 
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Mi estilo pastoral</h3>
-                <p className="text-sm text-muted-foreground">
-                  Personaliza cómo MiKerygma escribe para ti.
-                </p>
-              </div>
+              <GroupHeader
+                title="Tu identidad ministerial"
+                description="Define qué verdad bíblica suele ser el eje de tu ministerio y cómo enseñas."
+              />
 
-              <div className="space-y-2">
-                <Label>Tono preferido</Label>
-                <Select value={pastoralTone} onValueChange={setPastoralTone}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona tu tono preferido" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PASTORAL_TONES.map((t) => (
-                      <SelectItem key={t.value} value={t.value}>
-                        {t.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <LabeledSelect
+                label="Centro teológico"
+                placeholder="Selecciona tu centro teológico"
+                value={theologicalCenter}
+                onValueChange={setTheologicalCenter}
+                options={THEOLOGICAL_CENTERS}
+              />
+              <LabeledSelect
+                label="Estilo de enseñanza"
+                placeholder="Selecciona tu estilo de enseñanza"
+                value={teachingStyle}
+                onValueChange={setTeachingStyle}
+                options={TEACHING_STYLES}
+              />
+              <LabeledSelect
+                label="Denominación"
+                placeholder="Selecciona tu denominación"
+                value={denomination}
+                onValueChange={setDenomination}
+                options={DENOMINATIONS}
+              />
 
-              <div className="space-y-2">
-                <Label>Audiencia principal</Label>
-                <Select value={targetAudience} onValueChange={setTargetAudience}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Selecciona tu audiencia principal" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {TARGET_AUDIENCES.map((a) => (
-                      <SelectItem key={a.value} value={a.value}>
-                        {a.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <Separator />
+
+              <GroupHeader
+                title="Tu forma de comunicar"
+                description="Configura cómo te comunicas con tu congregación. Esto afecta el tono, las aplicaciones y los cierres de cada generación."
+              />
+
+              <LabeledSelect
+                label="Tono preferido"
+                placeholder="Selecciona tu tono preferido"
+                value={pastoralTone}
+                onValueChange={setPastoralTone}
+                options={PASTORAL_TONES}
+              />
+              <LabeledSelect
+                label="Nivel de confrontación"
+                placeholder="Selecciona tu nivel de confrontación"
+                value={confrontationLevel}
+                onValueChange={setConfrontationLevel}
+                options={CONFRONTATION_LEVELS}
+              />
+              <LabeledSelect
+                label="Tipo de aplicación preferida"
+                placeholder="Selecciona el tipo de aplicación"
+                value={applicationType}
+                onValueChange={setApplicationType}
+                options={APPLICATION_TYPES}
+              />
+              <LabeledSelect
+                label="Forma de cierre"
+                placeholder="Selecciona cómo sueles cerrar"
+                value={pastoralClosing}
+                onValueChange={setPastoralClosing}
+                options={PASTORAL_CLOSINGS}
+              />
+
+              <Separator />
+
+              <GroupHeader
+                title="Personalización avanzada"
+                description="Entre más específico seas, más personalizado será tu contenido. Estas preferencias se aplican automáticamente a cada generación."
+              />
+
+              <LabeledSelect
+                label="Audiencia principal"
+                placeholder="Selecciona tu audiencia principal"
+                value={targetAudience}
+                onValueChange={setTargetAudience}
+                options={TARGET_AUDIENCES}
+              />
 
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="pastoral-instructions">
-                    Describe tu estilo y las características de tu congregación. Entre más específico seas, más
-                    personalizado será tu mensaje.
-                  </Label>
+                  <Label htmlFor="phrases-to-avoid">Frases o enfoques que prefieres evitar</Label>
+                  <span className="text-xs text-muted-foreground">
+                    {phrasesToAvoid.length}/{PHRASES_TO_AVOID_MAX}
+                  </span>
                 </div>
+                <Textarea
+                  id="phrases-to-avoid"
+                  rows={3}
+                  maxLength={PHRASES_TO_AVOID_MAX}
+                  placeholder="Ej: Evito frases como 'Dios tiene un plan perfecto para ti' sin contexto. No uso lenguaje que culpabilice a quienes sufren."
+                  value={phrasesToAvoid}
+                  onChange={(e) => setPhrasesToAvoid(e.target.value)}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="pastoral-instructions">
+                  Describe tu estilo y las características de tu congregación. Entre más específico seas, más
+                  personalizado será tu mensaje.
+                </Label>
                 <Textarea
                   id="pastoral-instructions"
                   rows={4}
@@ -271,7 +323,6 @@ export function Profile() {
             <div className="space-y-4">
               <ProfileRow label="Nombre completo" value={profile?.full_name} />
               <ProfileRow label="Rol" value={roleLabel} />
-              <ProfileRow label="Denominación" value={denominationLabel} />
               <ProfileRow label="Traducción preferida" value={translationLabel} />
               <ProfileRow label="País" value={profile?.country} />
               <ProfileRow label="Iglesia" value={profile?.church_name || '—'} />
@@ -283,14 +334,38 @@ export function Profile() {
 
               <Separator />
 
-              <div>
-                <h3 className="text-lg font-semibold text-foreground">Mi estilo pastoral</h3>
-                <p className="text-sm text-muted-foreground">
-                  Personaliza cómo MiKerygma escribe para ti.
+              <GroupHeader
+                title="Tu identidad ministerial"
+                description="Define qué verdad bíblica suele ser el eje de tu ministerio y cómo enseñas."
+              />
+              <ProfileRow label="Centro teológico" value={theologicalCenterLabel} />
+              <ProfileRow label="Estilo de enseñanza" value={teachingStyleLabel} />
+              <ProfileRow label="Denominación" value={denominationLabel} />
+
+              <Separator />
+
+              <GroupHeader
+                title="Tu forma de comunicar"
+                description="Configura cómo te comunicas con tu congregación. Esto afecta el tono, las aplicaciones y los cierres de cada generación."
+              />
+              <ProfileRow label="Tono preferido" value={pastoralToneLabel} />
+              <ProfileRow label="Nivel de confrontación" value={confrontationLevelLabel} />
+              <ProfileRow label="Tipo de aplicación preferida" value={applicationTypeLabel} />
+              <ProfileRow label="Forma de cierre" value={pastoralClosingLabel} />
+
+              <Separator />
+
+              <GroupHeader
+                title="Personalización avanzada"
+                description="Entre más específico seas, más personalizado será tu contenido. Estas preferencias se aplican automáticamente a cada generación."
+              />
+              <ProfileRow label="Audiencia principal" value={targetAudienceLabel} />
+              <div className="break-words">
+                <span className="text-sm font-medium text-foreground">Frases o enfoques a evitar</span>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {profile?.phrases_to_avoid || '—'}
                 </p>
               </div>
-              <ProfileRow label="Tono preferido" value={pastoralToneLabel} />
-              <ProfileRow label="Audiencia principal" value={targetAudienceLabel} />
               <div className="break-words">
                 <span className="text-sm font-medium text-foreground">Instrucciones permanentes</span>
                 <p className="mt-1 text-sm text-muted-foreground">
@@ -301,6 +376,35 @@ export function Profile() {
           )}
         </CardContent>
       </Card>
+    </div>
+  )
+}
+
+function GroupHeader({ title, description }) {
+  return (
+    <div>
+      <h3 className="text-lg font-semibold text-foreground">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  )
+}
+
+function LabeledSelect({ label, placeholder, value, onValueChange, options }) {
+  return (
+    <div className="space-y-2">
+      <Label>{label}</Label>
+      <Select value={value} onValueChange={onValueChange}>
+        <SelectTrigger className="w-full">
+          <SelectValue placeholder={placeholder} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o.value} value={o.value}>
+              {o.label}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </div>
   )
 }

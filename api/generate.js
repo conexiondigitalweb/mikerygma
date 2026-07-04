@@ -1,5 +1,16 @@
 import { createClient } from '@supabase/supabase-js'
-import { OCCASIONS, DURATIONS, DENOMINATIONS, PASTORAL_TONES, TARGET_AUDIENCES } from '../src/lib/constants.js'
+import {
+  OCCASIONS,
+  DURATIONS,
+  DENOMINATIONS,
+  PASTORAL_TONES,
+  TARGET_AUDIENCES,
+  THEOLOGICAL_CENTERS,
+  TEACHING_STYLES,
+  CONFRONTATION_LEVELS,
+  APPLICATION_TYPES,
+  PASTORAL_CLOSINGS,
+} from '../src/lib/constants.js'
 
 const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
@@ -18,28 +29,41 @@ function buildPrompt({
   inputType,
   inputText,
   customInstructions,
+  theologicalCenter,
+  teachingStyle,
+  confrontationLevel,
+  applicationType,
+  pastoralClosing,
   pastoralTone,
   targetAudience,
+  phrasesToAvoid,
   pastoralInstructions,
 }) {
   const occasionLabel = labelFor(OCCASIONS, occasion)
   const durationInfo = DURATIONS.find((d) => d.value === duration) ?? DURATIONS[1]
   const denominationLabel = denomination ? labelFor(DENOMINATIONS, denomination, denomination) : 'interdenominacional'
-  const pastoralToneLabel = pastoralTone ? labelFor(PASTORAL_TONES, pastoralTone, pastoralTone) : null
-  const targetAudienceLabel = targetAudience ? labelFor(TARGET_AUDIENCES, targetAudience, targetAudience) : null
 
-  const hasPastoralStyle = pastoralToneLabel || targetAudienceLabel || pastoralInstructions
-  const pastoralStyleSection = hasPastoralStyle
+  const adnFields = [
+    theologicalCenter && `Centro teológico: ${labelFor(THEOLOGICAL_CENTERS, theologicalCenter, theologicalCenter)}`,
+    teachingStyle && `Estilo de enseñanza: ${labelFor(TEACHING_STYLES, teachingStyle, teachingStyle)}`,
+    confrontationLevel && `Nivel de confrontación: ${labelFor(CONFRONTATION_LEVELS, confrontationLevel, confrontationLevel)}`,
+    applicationType && `Tipo de aplicación preferida: ${labelFor(APPLICATION_TYPES, applicationType, applicationType)}`,
+    pastoralClosing && `Forma de cierre: ${labelFor(PASTORAL_CLOSINGS, pastoralClosing, pastoralClosing)}`,
+    pastoralTone && `Tono preferido: ${labelFor(PASTORAL_TONES, pastoralTone, pastoralTone)}`,
+    targetAudience && `Audiencia principal: ${labelFor(TARGET_AUDIENCES, targetAudience, targetAudience)}`,
+    phrasesToAvoid && `Frases o enfoques a evitar: ${phrasesToAvoid}`,
+    pastoralInstructions && `Instrucciones permanentes: ${pastoralInstructions}`,
+  ].filter(Boolean)
+
+  const pastoralStyleSection = adnFields.length > 0
     ? `
 
 ═══════════════════════════════════════
-ESTILO PASTORAL PERSONALIZADO DEL USUARIO
+ADN PASTORAL DEL USUARIO
 ═══════════════════════════════════════
-Tono preferido: ${pastoralToneLabel ?? 'no especificado'}
-Audiencia principal: ${targetAudienceLabel ?? 'no especificada'}
-Instrucciones permanentes del usuario: ${pastoralInstructions ?? 'ninguna'}
+${adnFields.join('\n')}
 
-IMPORTANTE: Estas preferencias deben reflejarse en TODO el contenido generado. El tono, las ilustraciones, las aplicaciones y el vocabulario deben adaptarse a este estilo y audiencia.`
+IMPORTANTE: Estas preferencias definen el ADN ministerial del usuario. TODO el contenido generado debe reflejar estas preferencias de manera natural. El sermón, el devocional, las oraciones y el contenido para redes deben sonar como si el propio pastor los hubiera escrito. Las instrucciones específicas de cada generación tienen prioridad sobre estas preferencias cuando hay conflicto.`
     : ''
 
   const customInstructionsSection = customInstructions
@@ -361,7 +385,7 @@ export default async function handler(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('role, denomination, generations_used, generations_limit, pastoral_tone, target_audience, pastoral_instructions')
+      .select('role, denomination, generations_used, generations_limit, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
       .eq('id', user_id)
       .single()
 
@@ -393,8 +417,14 @@ export default async function handler(req, res) {
     inputType: input_type,
     inputText: input_text,
     customInstructions: custom_instructions?.trim() || null,
+    theologicalCenter: profile.theological_center,
+    teachingStyle: profile.teaching_style,
+    confrontationLevel: profile.confrontation_level,
+    applicationType: profile.application_type,
+    pastoralClosing: profile.pastoral_closing,
     pastoralTone: profile.pastoral_tone,
     targetAudience: profile.target_audience,
+    phrasesToAvoid: profile.phrases_to_avoid,
     pastoralInstructions: profile.pastoral_instructions,
   })
 

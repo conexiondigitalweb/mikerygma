@@ -19,6 +19,12 @@ CREATE TABLE profiles (
   pastoral_tone TEXT, -- pastoral_calido, profetico_desafiante, academico_reflexivo, evangelistico, conversacional
   target_audience TEXT, -- general, jovenes, mujeres, familias, adultos_mayores, profesionales, rural
   pastoral_instructions TEXT, -- instrucciones permanentes de estilo, máximo 1000 caracteres (validado en frontend)
+  theological_center TEXT, -- gracia, reino, discipulado, santidad, evangelismo, familia, justicia, adoracion, esperanza
+  teaching_style TEXT, -- expositivo, tematico, narrativo, pastoral, apologetico, devocional
+  confrontation_level TEXT, -- suave, moderado, directo, profetico
+  application_type TEXT, -- practica_diaria, introspectiva, comunitaria, evangelistica, familiar
+  pastoral_closing TEXT, -- llamado, oracion_guiada, reflexion, desafio, consuelo
+  phrases_to_avoid TEXT, -- frases o enfoques a evitar, máximo 500 caracteres (validado en frontend)
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
