@@ -16,6 +16,9 @@ CREATE TABLE profiles (
   plan TEXT DEFAULT 'free', -- free, mensajero ($9/mes), proclamador ($19/mes)
   generations_used INTEGER DEFAULT 0,
   generations_limit INTEGER DEFAULT 5, -- free=5, mensajero=50, proclamador=ilimitado (-1)
+  pastoral_tone TEXT, -- pastoral_calido, profetico_desafiante, academico_reflexivo, evangelistico, conversacional
+  target_audience TEXT, -- general, jovenes, mujeres, familias, adultos_mayores, profesionales, rural
+  pastoral_instructions TEXT, -- instrucciones permanentes de estilo, máximo 1000 caracteres (validado en frontend)
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
@@ -26,10 +29,11 @@ CREATE TABLE profiles (
 CREATE TABLE generations (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
-  input_type TEXT NOT NULL, -- 'pasaje', 'tema', 'situacion'
+  input_type TEXT NOT NULL, -- 'pasaje', 'tema', 'situacion', 'youtube'
   input_text TEXT NOT NULL,
   occasion TEXT NOT NULL,
   translation TEXT NOT NULL,
+  custom_instructions TEXT, -- instrucciones adicionales específicas de esta generación (opcional)
   output_sermon JSONB,
   output_devotional JSONB,
   output_social JSONB,

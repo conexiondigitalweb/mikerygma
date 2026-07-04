@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
-import { OCCASIONS, DURATIONS, DENOMINATIONS } from '../src/lib/constants.js'
+import { OCCASIONS, DURATIONS, DENOMINATIONS, PASTORAL_TONES, TARGET_AUDIENCES } from '../src/lib/constants.js'
 
 const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
@@ -9,10 +9,52 @@ function labelFor(list, value, fallback) {
   return list.find((item) => item.value === value)?.label ?? fallback ?? value
 }
 
-function buildPrompt({ translation, denomination, userRole, occasion, duration, inputType, inputText }) {
+function buildPrompt({
+  translation,
+  denomination,
+  userRole,
+  occasion,
+  duration,
+  inputType,
+  inputText,
+  customInstructions,
+  pastoralTone,
+  targetAudience,
+  pastoralInstructions,
+}) {
   const occasionLabel = labelFor(OCCASIONS, occasion)
   const durationInfo = DURATIONS.find((d) => d.value === duration) ?? DURATIONS[1]
   const denominationLabel = denomination ? labelFor(DENOMINATIONS, denomination, denomination) : 'interdenominacional'
+  const pastoralToneLabel = pastoralTone ? labelFor(PASTORAL_TONES, pastoralTone, pastoralTone) : null
+  const targetAudienceLabel = targetAudience ? labelFor(TARGET_AUDIENCES, targetAudience, targetAudience) : null
+
+  const hasPastoralStyle = pastoralToneLabel || targetAudienceLabel || pastoralInstructions
+  const pastoralStyleSection = hasPastoralStyle
+    ? `
+
+═══════════════════════════════════════
+ESTILO PASTORAL PERSONALIZADO DEL USUARIO
+═══════════════════════════════════════
+Tono preferido: ${pastoralToneLabel ?? 'no especificado'}
+Audiencia principal: ${targetAudienceLabel ?? 'no especificada'}
+Instrucciones permanentes del usuario: ${pastoralInstructions ?? 'ninguna'}
+
+IMPORTANTE: Estas preferencias deben reflejarse en TODO el contenido generado. El tono, las ilustraciones, las aplicaciones y el vocabulario deben adaptarse a este estilo y audiencia.`
+    : ''
+
+  const customInstructionsSection = customInstructions
+    ? `
+
+═══════════════════════════════════════
+INSTRUCCIONES ESPECÍFICAS DEL USUARIO PARA ESTA GENERACIÓN
+═══════════════════════════════════════
+El usuario ha dado estas indicaciones adicionales que DEBEN reflejarse en todo el contenido generado:
+${customInstructions}`
+    : ''
+
+  const youtubeContext = inputType === 'youtube'
+    ? 'El usuario ha proporcionado la transcripción de una prédica en YouTube. A partir de esta prédica, genera un paquete pastoral completo (sermón estructurado, devocional, contenido para redes y oración) que capture la esencia del mensaje original pero lo reorganice, profundice y adapte al formato de MiKerygma.\n\n'
+    : ''
 
   return `Este es un asistente de preparación de contenido ministerial para uso exclusivo de pastores y líderes de iglesia. Todo el contenido generado es material educativo y pastoral para uso en servicios religiosos.
 
@@ -193,15 +235,15 @@ CONTEXTO DEL USUARIO
 - Rol: ${userRole}
 - Denominación: ${denominationLabel}
 - Traducción preferida: ${translation}
-- Tipo de input: ${inputType} (pasaje / tema / situación)
+- Tipo de input: ${inputType} (pasaje / tema / situación / youtube)
 - Ocasión: ${occasionLabel}
-- Duración estimada: ${durationInfo.label} (genera exactamente ${durationInfo.points} puntos en el sermón)
+- Duración estimada: ${durationInfo.label} (genera exactamente ${durationInfo.points} puntos en el sermón)${pastoralStyleSection}${customInstructionsSection}
 
 ═══════════════════════════════════════
 INPUT DEL USUARIO
 ═══════════════════════════════════════
 
-${inputText}
+${youtubeContext}${inputText}
 
 ═══════════════════════════════════════
 FORMATO DE RESPUESTA
@@ -297,7 +339,7 @@ export default async function handler(req, res) {
     return
   }
 
-  const { input_type, input_text, occasion, translation, denomination, duration, user_id } = req.body ?? {}
+  const { input_type, input_text, occasion, translation, denomination, duration, user_id, custom_instructions } = req.body ?? {}
 
   if (!input_type || !input_text || !occasion || !translation || !duration || !user_id) {
     res.status(400).json({ error: 'Faltan campos requeridos: input_type, input_text, occasion, translation, duration, user_id.' })
@@ -319,7 +361,7 @@ export default async function handler(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('role, denomination, generations_used, generations_limit')
+      .select('role, denomination, generations_used, generations_limit, pastoral_tone, target_audience, pastoral_instructions')
       .eq('id', user_id)
       .single()
 
@@ -350,6 +392,10 @@ export default async function handler(req, res) {
     duration,
     inputType: input_type,
     inputText: input_text,
+    customInstructions: custom_instructions?.trim() || null,
+    pastoralTone: profile.pastoral_tone,
+    targetAudience: profile.target_audience,
+    pastoralInstructions: profile.pastoral_instructions,
   })
 
   let parsed
@@ -412,6 +458,7 @@ export default async function handler(req, res) {
         input_text,
         occasion,
         translation,
+        custom_instructions: custom_instructions?.trim() || null,
         output_sermon: parsed.sermon ?? null,
         output_devotional: parsed.devocional ?? null,
         output_social: parsed.redes ?? null,

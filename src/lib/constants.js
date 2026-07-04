@@ -49,6 +49,25 @@ export const INPUT_TYPES = [
   { value: 'pasaje', label: 'Desde un pasaje bíblico', icon: '📖', placeholder: 'Ej: Juan 3:16-21, Salmo 23, Romanos 8:28-39' },
   { value: 'tema', label: 'Desde un tema', icon: '💡', placeholder: 'Ej: La gracia de Dios, El perdón, La fe en tiempos difíciles' },
   { value: 'situacion', label: 'Desde una situación cotidiana', icon: '🤝', placeholder: 'Ej: Un joven de la iglesia perdió a su madre, La congregación enfrenta una crisis económica' },
+  { value: 'youtube', label: 'Desde una prédica en YouTube', icon: '🎬', placeholder: 'Pega la URL del video de YouTube (ej: https://www.youtube.com/watch?v=...)' },
+]
+
+export const PASTORAL_TONES = [
+  { value: 'pastoral_calido', label: 'Pastoral cálido — cercano, empático, como un amigo que camina contigo' },
+  { value: 'profetico_desafiante', label: 'Profético desafiante — directo, confrontador con amor, urgente' },
+  { value: 'academico_reflexivo', label: 'Académico reflexivo — analítico, profundo, con énfasis en el estudio' },
+  { value: 'evangelistico', label: 'Evangelístico — orientado a la decisión, apasionado, invitacional' },
+  { value: 'conversacional', label: 'Conversacional — informal, con preguntas retóricas, como una charla' },
+]
+
+export const TARGET_AUDIENCES = [
+  { value: 'general', label: 'Congregación general' },
+  { value: 'jovenes', label: 'Jóvenes y adolescentes' },
+  { value: 'mujeres', label: 'Mujeres' },
+  { value: 'familias', label: 'Familias y matrimonios' },
+  { value: 'adultos_mayores', label: 'Adultos mayores' },
+  { value: 'profesionales', label: 'Profesionales y emprendedores' },
+  { value: 'rural', label: 'Comunidad rural' },
 ]
 
 export const PLANS = {

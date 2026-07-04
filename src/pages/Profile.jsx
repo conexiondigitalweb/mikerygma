@@ -1,14 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { ROLES, DENOMINATIONS, TRANSLATIONS, PLANS } from '@/lib/constants'
+import { ROLES, DENOMINATIONS, TRANSLATIONS, PLANS, PASTORAL_TONES, TARGET_AUDIENCES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+import { Textarea } from '@/components/ui/textarea'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@/components/ui/select'
 import { Separator } from '@/components/ui/separator'
 import { Badge } from '@/components/ui/badge'
+
+const PASTORAL_INSTRUCTIONS_MAX = 1000
 
 export function Profile() {
   const { user } = useAuth()
@@ -24,6 +27,9 @@ export function Profile() {
   const [translation, setTranslation] = useState('RVR1960')
   const [country, setCountry] = useState('')
   const [churchName, setChurchName] = useState('')
+  const [pastoralTone, setPastoralTone] = useState('')
+  const [targetAudience, setTargetAudience] = useState('')
+  const [pastoralInstructions, setPastoralInstructions] = useState('')
 
   useEffect(() => {
     if (!user) return
@@ -46,6 +52,9 @@ export function Profile() {
     setTranslation(profile?.preferred_translation ?? 'RVR1960')
     setCountry(profile?.country ?? '')
     setChurchName(profile?.church_name ?? '')
+    setPastoralTone(profile?.pastoral_tone ?? '')
+    setTargetAudience(profile?.target_audience ?? '')
+    setPastoralInstructions(profile?.pastoral_instructions ?? '')
     setError('')
     setEditing(true)
   }
@@ -63,6 +72,9 @@ export function Profile() {
       preferred_translation: translation,
       country,
       church_name: churchName || null,
+      pastoral_tone: pastoralTone || null,
+      target_audience: targetAudience || null,
+      pastoral_instructions: pastoralInstructions || null,
     }
 
     const { error } = await supabase.from('profiles').upsert(updates)
@@ -86,6 +98,8 @@ export function Profile() {
   const roleLabel = ROLES.find((r) => r.value === profile?.role)?.label
   const translationLabel = TRANSLATIONS.find((t) => t.value === profile?.preferred_translation)?.label
   const planLabel = PLANS[profile?.plan]?.name ?? profile?.plan
+  const pastoralToneLabel = PASTORAL_TONES.find((t) => t.value === profile?.pastoral_tone)?.label
+  const targetAudienceLabel = TARGET_AUDIENCES.find((a) => a.value === profile?.target_audience)?.label
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-16">
@@ -181,6 +195,67 @@ export function Profile() {
                 />
               </div>
 
+              <Separator />
+
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Mi estilo pastoral</h3>
+                <p className="text-sm text-muted-foreground">
+                  Personaliza cómo MiKerygma escribe para ti.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Tono preferido</Label>
+                <Select value={pastoralTone} onValueChange={setPastoralTone}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecciona tu tono preferido" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PASTORAL_TONES.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Audiencia principal</Label>
+                <Select value={targetAudience} onValueChange={setTargetAudience}>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Selecciona tu audiencia principal" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TARGET_AUDIENCES.map((a) => (
+                      <SelectItem key={a.value} value={a.value}>
+                        {a.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="pastoral-instructions">
+                    Describe tu estilo y las características de tu congregación. Entre más específico seas, más
+                    personalizado será tu mensaje.
+                  </Label>
+                </div>
+                <Textarea
+                  id="pastoral-instructions"
+                  rows={4}
+                  maxLength={PASTORAL_INSTRUCTIONS_MAX}
+                  placeholder="Ej: Mi estilo es conversacional, uso muchas preguntas retóricas. Mi congregación es de clase trabajadora en una ciudad pequeña de Colombia. Prefiero ilustraciones de la vida cotidiana y del campo. Siempre incluyo un momento de oración guiada."
+                  value={pastoralInstructions}
+                  onChange={(e) => setPastoralInstructions(e.target.value)}
+                />
+                <p className="text-right text-xs text-muted-foreground">
+                  {pastoralInstructions.length}/{PASTORAL_INSTRUCTIONS_MAX}
+                </p>
+              </div>
+
               {error && <p className="text-sm text-destructive">{error}</p>}
 
               <div className="flex gap-2">
@@ -204,6 +279,23 @@ export function Profile() {
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium text-foreground">Plan actual</span>
                 <Badge variant="secondary">{planLabel}</Badge>
+              </div>
+
+              <Separator />
+
+              <div>
+                <h3 className="text-lg font-semibold text-foreground">Mi estilo pastoral</h3>
+                <p className="text-sm text-muted-foreground">
+                  Personaliza cómo MiKerygma escribe para ti.
+                </p>
+              </div>
+              <ProfileRow label="Tono preferido" value={pastoralToneLabel} />
+              <ProfileRow label="Audiencia principal" value={targetAudienceLabel} />
+              <div>
+                <span className="text-sm font-medium text-foreground">Instrucciones permanentes</span>
+                <p className="mt-1 text-sm text-muted-foreground">
+                  {profile?.pastoral_instructions || '—'}
+                </p>
               </div>
             </div>
           )}
