@@ -1,7 +1,6 @@
-import { useEffect, useState } from 'react'
 import { Navigate, useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
-import { supabase } from '@/lib/supabase'
+import { useProfile } from '@/hooks/useProfile'
 
 function LoadingScreen() {
   return (
@@ -13,28 +12,8 @@ function LoadingScreen() {
 
 export function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
+  const { hasProfile } = useProfile()
   const location = useLocation()
-  const [profileComplete, setProfileComplete] = useState(null)
-
-  useEffect(() => {
-    if (!user) return
-
-    let cancelled = false
-    setProfileComplete(null)
-
-    supabase
-      .from('profiles')
-      .select('full_name')
-      .eq('id', user.id)
-      .maybeSingle()
-      .then(({ data }) => {
-        if (!cancelled) setProfileComplete(Boolean(data?.full_name))
-      })
-
-    return () => {
-      cancelled = true
-    }
-  }, [user])
 
   if (loading) {
     return <LoadingScreen />
@@ -44,11 +23,11 @@ export function ProtectedRoute({ children }) {
     return <Navigate to="/login" replace />
   }
 
-  if (profileComplete === null) {
+  if (hasProfile === null) {
     return <LoadingScreen />
   }
 
-  if (!profileComplete && location.pathname !== '/onboarding') {
+  if (!hasProfile && location.pathname !== '/onboarding') {
     return <Navigate to="/onboarding" replace />
   }
 

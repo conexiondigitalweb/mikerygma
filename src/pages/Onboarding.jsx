@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
+import { useProfile } from '@/hooks/useProfile'
 import { supabase } from '@/lib/supabase'
 import { DENOMINATIONS, TRANSLATIONS, ROLES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
@@ -11,6 +12,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 
 export function Onboarding() {
   const { user } = useAuth()
+  const { refreshProfile } = useProfile()
   const navigate = useNavigate()
 
   const [fullName, setFullName] = useState('')
@@ -46,6 +48,7 @@ export function Onboarding() {
       return
     }
 
+    await refreshProfile()
     setSaved(true)
   }
 
