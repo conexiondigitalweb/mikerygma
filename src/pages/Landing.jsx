@@ -17,6 +17,7 @@ import {
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
+import { PLANS } from '@/lib/constants'
 
 const STEPS = [
   {
@@ -66,35 +67,7 @@ const DIFFERENTIATORS = [
   { title: 'Menos tiempo preparando, más tiempo pastoreando', description: 'Lo que te tomaba horas ahora te toma minutos. Dedica el tiempo ahorrado a lo que realmente importa: tu gente.', icon: Clock },
 ]
 
-const PLANS = [
-  {
-    name: 'Gratis',
-    tagline: 'Descubre tu copiloto',
-    price: '$0',
-    period: '',
-    features: ['5 generaciones al mes', 'Perfil básico', 'Todas las funciones', 'Marca de agua en outputs'],
-    cta: 'Empieza gratis',
-    highlighted: false,
-  },
-  {
-    name: 'Mensajero',
-    tagline: 'Para el pastor comprometido',
-    price: '$9',
-    period: '/mes',
-    features: ['50 generaciones al mes', 'Perfil ministerial completo', 'Historial completo', 'Sin marca de agua', 'Soporte por email'],
-    cta: 'Elegir Mensajero',
-    highlighted: true,
-  },
-  {
-    name: 'Proclamador',
-    tagline: 'Para ministerios en crecimiento',
-    price: '$19',
-    period: '/mes',
-    features: ['Generaciones ilimitadas', 'Todas las funciones', 'Outputs en PDF descargable', 'Acceso anticipado a nuevas funciones'],
-    cta: 'Elegir Proclamador',
-    highlighted: false,
-  },
-]
+const PLAN_ORDER = ['free', 'mensajero', 'proclamador']
 
 export function Landing() {
   return (
@@ -248,39 +221,45 @@ export function Landing() {
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-3xl font-bold text-foreground">Planes</h2>
           <div className="mt-12 grid grid-cols-1 gap-3 sm:grid-cols-3 sm:gap-6">
-            {PLANS.map((plan) => (
-              <Card
-                key={plan.name}
-                className={plan.highlighted ? 'border-primary shadow-lg ring-1 ring-primary' : ''}
-              >
-                <CardHeader>
-                  {plan.highlighted && <Badge className="mb-2 w-fit">Más popular</Badge>}
-                  <CardTitle className="text-xl">{plan.name}</CardTitle>
-                  <CardDescription>{plan.tagline}</CardDescription>
-                  <p className="text-3xl font-bold text-foreground">
-                    {plan.price}
-                    <span className="text-base font-normal text-muted-foreground">{plan.period}</span>
-                  </p>
-                </CardHeader>
-                <CardContent>
-                  <ul className="space-y-2">
-                    {plan.features.map((feature) => (
-                      <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
-                        <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-                        {feature}
-                      </li>
-                    ))}
-                  </ul>
-                  <Button
-                    className="mt-6 w-full"
-                    variant={plan.highlighted ? 'default' : 'outline'}
-                    asChild
-                  >
-                    <Link to="/login?mode=signup">{plan.cta}</Link>
-                  </Button>
-                </CardContent>
-              </Card>
-            ))}
+            {PLAN_ORDER.map((key) => {
+              const plan = PLANS[key]
+              const highlighted = key === 'mensajero'
+              return (
+                <Card
+                  key={key}
+                  className={highlighted ? 'border-primary shadow-lg ring-1 ring-primary' : ''}
+                >
+                  <CardHeader>
+                    {highlighted && <Badge className="mb-2 w-fit">Más popular</Badge>}
+                    <CardTitle className="text-xl">{plan.name}</CardTitle>
+                    <CardDescription>{plan.tagline}</CardDescription>
+                    <p className="text-3xl font-bold text-foreground">
+                      ${plan.price}
+                      {plan.price > 0 && <span className="text-base font-normal text-muted-foreground">/mes</span>}
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <ul className="space-y-2">
+                      {plan.display_features.map((feature) => (
+                        <li key={feature} className="flex items-start gap-2 text-sm text-muted-foreground">
+                          <Check className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                    <Button
+                      className="mt-6 w-full"
+                      variant={highlighted ? 'default' : 'outline'}
+                      asChild
+                    >
+                      <Link to="/login?mode=signup">
+                        {key === 'free' ? 'Empieza gratis' : `Elegir ${plan.name}`}
+                      </Link>
+                    </Button>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </section>
