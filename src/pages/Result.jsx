@@ -9,6 +9,8 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs'
 import { CopyButton } from '@/components/CopyButton'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
+import { SocialCardPreview } from '@/components/SocialCardPreview'
+import { extractCardText } from '@/lib/socialCardText'
 
 const WATERMARK = '\n\n— Generado con MiKerygma.com'
 
@@ -61,9 +63,27 @@ function formatDevocionalText(devocional) {
 }
 
 const SOCIAL_META = {
-  post_instagram: { label: 'Instagram', badgeClass: 'bg-accent/10 text-accent' },
-  post_stories: { label: 'Stories / Twitter', badgeClass: 'bg-primary/10 text-primary' },
-  post_twitter: { label: 'Twitter / X', badgeClass: 'bg-secondary text-secondary-foreground' },
+  post_instagram: {
+    label: 'Instagram',
+    badgeClass: 'bg-accent/10 text-accent',
+    cardType: 'instagram',
+    cardStyle: 'verse',
+    platform: 'Instagram',
+  },
+  post_stories: {
+    label: 'Stories / Twitter',
+    badgeClass: 'bg-primary/10 text-primary',
+    cardType: 'story',
+    cardStyle: 'quote',
+    platform: 'Stories',
+  },
+  post_twitter: {
+    label: 'Twitter / X',
+    badgeClass: 'bg-secondary text-secondary-foreground',
+    cardType: 'twitter',
+    cardStyle: 'reflection',
+    platform: 'Twitter/X',
+  },
 }
 
 export function Result() {
@@ -233,9 +253,10 @@ export function Result() {
           {Object.entries(SOCIAL_META).map(([key, meta]) => {
             const post = redes?.[key]
             if (!post) return null
+            const { mainText, reference } = extractCardText(post.texto)
             return (
               <Card key={key}>
-                <CardContent className="space-y-3">
+                <CardContent className="space-y-4">
                   <div className="flex items-center justify-between">
                     <Badge className={meta.badgeClass} variant="secondary">
                       {meta.label}
@@ -247,6 +268,20 @@ export function Result() {
                       label="Copiar"
                     />
                   </div>
+
+                  <div className="flex justify-center">
+                    <SocialCardPreview
+                      text={mainText}
+                      type={meta.cardType}
+                      style={meta.cardStyle}
+                      hashtags={post.hashtags ?? []}
+                      reference={reference}
+                      showWatermark={hasWatermark}
+                      filename={`mikerygma-${key}`}
+                      platform={meta.platform}
+                    />
+                  </div>
+
                   <p className="text-foreground">{post.texto}</p>
                   <p className="text-sm text-primary">{(post.hashtags ?? []).join(' ')}</p>
                 </CardContent>

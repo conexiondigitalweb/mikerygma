@@ -49,7 +49,7 @@ export const INPUT_TYPES = [
   { value: 'pasaje', label: 'Desde un pasaje bíblico', icon: '📖', placeholder: 'Ej: Juan 3:16-21, Salmo 23, Romanos 8:28-39' },
   { value: 'tema', label: 'Desde un tema', icon: '💡', placeholder: 'Ej: La gracia de Dios, El perdón, La fe en tiempos difíciles' },
   { value: 'situacion', label: 'Desde una situación cotidiana', icon: '🤝', placeholder: 'Ej: Un joven de la iglesia perdió a su madre, La congregación enfrenta una crisis económica' },
-  { value: 'youtube', label: 'Desde una prédica en YouTube', icon: '🎬', placeholder: 'Pega la URL del video de YouTube (ej: https://www.youtube.com/watch?v=...)' },
+  { value: 'youtube', label: 'Desde un video de YouTube', icon: '🎬', placeholder: 'Pega la URL de cualquier video de YouTube (prédicas, enseñanzas, conferencias, podcasts...)' },
 ]
 
 export const PASTORAL_TONES = [

@@ -83,7 +83,7 @@ ${customInstructions}`
     : ''
 
   const youtubeContext = inputType === 'youtube'
-    ? 'El usuario ha proporcionado la transcripción de una prédica en YouTube. A partir de esta prédica, genera un paquete pastoral completo (sermón estructurado, devocional, contenido para redes y oración) que capture la esencia del mensaje original pero lo reorganice, profundice y adapte al formato de MiKerygma.\n\n'
+    ? 'El usuario ha proporcionado la transcripción de un video de YouTube. A partir de este contenido, genera un paquete pastoral completo (sermón estructurado, devocional, contenido para redes y oración) que capture la esencia del mensaje, lo reorganice, profundice y adapte al formato de MiKerygma según el ADN pastoral del usuario.\n\n'
     : ''
 
   return `Este es un asistente de preparación de contenido ministerial para uso exclusivo de pastores y líderes de iglesia. Todo el contenido generado es material educativo y pastoral para uso en servicios religiosos.
