@@ -76,10 +76,12 @@ IMPORTANTE: Estas preferencias definen el ADN ministerial del usuario. TODO el c
     ? `
 
 ═══════════════════════════════════════
-INSTRUCCIONES ESPECÍFICAS DEL USUARIO PARA ESTA GENERACIÓN
+ÉNFASIS ADICIONAL SOLICITADO POR EL USUARIO
 ═══════════════════════════════════════
-El usuario ha dado estas indicaciones adicionales que DEBEN reflejarse en todo el contenido generado:
-${customInstructions}`
+El usuario quiere que el contenido tenga este énfasis particular:
+${customInstructions}
+
+IMPORTANTE: Estas instrucciones son una GUÍA DE ÉNFASIS, no directivas literales. Integra este énfasis de manera orgánica y natural en todo el contenido. NO uses estas palabras textualmente como título del sermón. El título debe ser original, evocador y conectado con el pasaje o tema, no una repetición de las instrucciones del usuario.`
     : ''
 
   const youtubeContext = inputType === 'youtube'

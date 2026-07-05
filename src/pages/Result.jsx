@@ -253,7 +253,7 @@ export function Result() {
           {Object.entries(SOCIAL_META).map(([key, meta]) => {
             const post = redes?.[key]
             if (!post) return null
-            const { mainText, reference } = extractCardText(post.texto)
+            const { mainText, reference } = extractCardText(post.texto, meta.cardType)
             return (
               <Card key={key}>
                 <CardContent className="space-y-4">
