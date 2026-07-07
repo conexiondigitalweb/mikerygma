@@ -551,9 +551,13 @@ function PreviewCard({
         <p className="text-sm text-muted-foreground">{preview.tension_humana}</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-start gap-2">
         <Label className="mr-1">Intención pastoral</Label>
-        {preview.intencion_pastoral && <Badge>{preview.intencion_pastoral}</Badge>}
+        {preview.intencion_pastoral && (
+          <div className="inline-flex max-w-full items-center justify-center gap-1 rounded-full border border-transparent bg-[#D4A24E] px-2 py-0.5 text-xs font-medium whitespace-normal break-words text-[#3A2E22]">
+            {preview.intencion_pastoral}
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 sm:grid-cols-2">
