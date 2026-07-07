@@ -2,6 +2,9 @@
   "functions": {
     "api/generate.js": {
       "maxDuration": 60
+    },
+    "api/preview.js": {
+      "maxDuration": 30
     }
   },
   "rewrites": [

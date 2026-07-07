@@ -131,6 +131,7 @@ export const PLANS = {
       full_history: false,
       watermark: true,
       pdf_export: false,
+      edit_preview: false,
     },
     display_features: [
       '3 generaciones al mes',
@@ -155,6 +156,7 @@ export const PLANS = {
       full_history: true,
       watermark: false,
       pdf_export: false,
+      edit_preview: true,
     },
     display_features: [
       '15 generaciones al mes',
@@ -181,6 +183,7 @@ export const PLANS = {
       full_history: true,
       watermark: false,
       pdf_export: true,
+      edit_preview: true,
     },
     display_features: [
       '40 generaciones al mes',

@@ -44,6 +44,7 @@ function buildPrompt({
   targetAudience,
   phrasesToAvoid,
   pastoralInstructions,
+  previewContext,
 }) {
   const occasionLabel = labelFor(OCCASIONS, occasion)
   const durationInfo = DURATIONS.find((d) => d.value === duration) ?? DURATIONS[1]
@@ -82,6 +83,20 @@ El usuario quiere que el contenido tenga este énfasis particular:
 ${customInstructions}
 
 IMPORTANTE: Estas instrucciones son una GUÍA DE ÉNFASIS, no directivas literales. Integra este énfasis de manera orgánica y natural en todo el contenido. NO uses estas palabras textualmente como título del sermón. El título debe ser original, evocador y conectado con el pasaje o tema, no una repetición de las instrucciones del usuario.`
+    : ''
+
+  const previewContextSection = previewContext
+    ? `
+
+═══════════════════════════════════════
+ENFOQUE PASTORAL CONFIRMADO POR EL USUARIO
+═══════════════════════════════════════
+El usuario ha revisado y aprobado el siguiente enfoque para este mensaje. DEBES respetar estos lineamientos:
+- Título del sermón: ${previewContext.titulo}
+- Tesis central: ${previewContext.tesis}
+- Puntos principales: ${(previewContext.puntos ?? []).join(', ')}
+
+Estos elementos fueron confirmados por el usuario y NO deben cambiarse. Desarrolla el contenido completo siguiendo esta estructura.`
     : ''
 
   const youtubeContext = inputType === 'youtube'
@@ -269,7 +284,7 @@ CONTEXTO DEL USUARIO
 - Traducción preferida: ${translation}
 - Tipo de input: ${inputType} (pasaje / tema / situación / youtube)
 - Ocasión: ${occasionLabel}
-- Duración estimada: ${durationInfo.label} (genera exactamente ${durationInfo.points} puntos en el sermón)${pastoralStyleSection}${customInstructionsSection}
+- Duración estimada: ${durationInfo.label} (genera exactamente ${durationInfo.points} puntos en el sermón)${pastoralStyleSection}${customInstructionsSection}${previewContextSection}
 
 ═══════════════════════════════════════
 INPUT DEL USUARIO
@@ -371,7 +386,7 @@ export default async function handler(req, res) {
     return
   }
 
-  const { input_type, input_text, occasion, translation, denomination, duration, user_id, custom_instructions } = req.body ?? {}
+  const { input_type, input_text, occasion, translation, denomination, duration, user_id, custom_instructions, preview_context } = req.body ?? {}
 
   if (!input_type || !input_text || !occasion || !translation || !duration || !user_id) {
     res.status(400).json({ error: 'Faltan campos requeridos: input_type, input_text, occasion, translation, duration, user_id.' })
@@ -446,6 +461,7 @@ export default async function handler(req, res) {
     targetAudience: allowFullAdn ? profile.target_audience : null,
     phrasesToAvoid: allowFullAdn ? profile.phrases_to_avoid : null,
     pastoralInstructions: allowFullAdn ? profile.pastoral_instructions : null,
+    previewContext: preview_context ?? null,
   })
 
   let parsed
