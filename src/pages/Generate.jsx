@@ -18,6 +18,32 @@ import { UpgradePrompt } from '@/components/UpgradePrompt'
 import { cn } from '@/lib/utils'
 
 const CUSTOM_INSTRUCTIONS_MAX = 500
+const PREVIEW_STORAGE_KEY = 'mikerygma_preview_state'
+
+function readStoredPreview() {
+  try {
+    const raw = sessionStorage.getItem(PREVIEW_STORAGE_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function savePreviewState(state) {
+  try {
+    sessionStorage.setItem(PREVIEW_STORAGE_KEY, JSON.stringify(state))
+  } catch {
+    // sessionStorage no disponible (modo privado, cuota excedida, etc.) — no es crítico
+  }
+}
+
+function clearPreviewState() {
+  try {
+    sessionStorage.removeItem(PREVIEW_STORAGE_KEY)
+  } catch {
+    // no-op
+  }
+}
 
 function formatDate(dateString) {
   if (!dateString) return ''
@@ -38,12 +64,16 @@ export function Generate() {
   const [profile, setProfile] = useState(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
 
-  const [mode, setMode] = useState(null)
-  const [inputText, setInputText] = useState('')
-  const [translation, setTranslation] = useState('RVR1960')
-  const [occasion, setOccasion] = useState('culto_dominical')
-  const [duration, setDuration] = useState('regular')
-  const [customInstructions, setCustomInstructions] = useState('')
+  // Se lee una sola vez por montaje: si Supabase Auth remonta este componente al
+  // recuperar el foco de la pestaña, esto recupera el preview en curso.
+  const [restoredPreview] = useState(() => readStoredPreview())
+
+  const [mode, setMode] = useState(() => restoredPreview?.inputType ?? null)
+  const [inputText, setInputText] = useState(() => restoredPreview?.inputText ?? '')
+  const [translation, setTranslation] = useState(() => restoredPreview?.translation ?? 'RVR1960')
+  const [occasion, setOccasion] = useState(() => restoredPreview?.occasion ?? 'culto_dominical')
+  const [duration, setDuration] = useState(() => restoredPreview?.duration ?? 'regular')
+  const [customInstructions, setCustomInstructions] = useState(() => restoredPreview?.customInstructions ?? '')
 
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [transcribing, setTranscribing] = useState(false)
@@ -55,13 +85,16 @@ export function Generate() {
   const [messageIndex, setMessageIndex] = useState(0)
   const [lockedModalFeature, setLockedModalFeature] = useState(null)
 
-  const [previewStep, setPreviewStep] = useState(false)
+  const [previewStep, setPreviewStep] = useState(() => Boolean(restoredPreview))
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
-  const [preview, setPreview] = useState(null)
-  const [editedTitulo, setEditedTitulo] = useState('')
-  const [editedTesis, setEditedTesis] = useState('')
-  const [editedPuntos, setEditedPuntos] = useState([])
+  const [preview, setPreview] = useState(() => restoredPreview?.previewData ?? null)
+  const [editedTitulo, setEditedTitulo] = useState(() => restoredPreview?.previewData?.titulo_propuesto ?? '')
+  const [editedTesis, setEditedTesis] = useState(() => restoredPreview?.previewData?.tesis ?? '')
+  const [editedPuntos, setEditedPuntos] = useState(() => {
+    const puntos = restoredPreview?.previewData?.puntos_sugeridos
+    return Array.isArray(puntos) ? puntos : []
+  })
   const [scriptureWarning, setScriptureWarning] = useState(null)
 
   useEffect(() => {
@@ -73,10 +106,10 @@ export function Generate() {
       .single()
       .then(({ data }) => {
         setProfile(data)
-        if (data?.preferred_translation) setTranslation(data.preferred_translation)
+        if (!restoredPreview && data?.preferred_translation) setTranslation(data.preferred_translation)
         setLoadingProfile(false)
       })
-  }, [user])
+  }, [user, restoredPreview])
 
   useEffect(() => {
     if (!generating) return
@@ -116,6 +149,7 @@ export function Generate() {
     setEditedTesis('')
     setEditedPuntos([])
     setScriptureWarning(null)
+    clearPreviewState()
   }
 
   const checkScriptureReuse = async (pasajeCentral) => {
@@ -211,6 +245,15 @@ export function Generate() {
       setEditedPuntos(Array.isArray(data.puntos_sugeridos) ? data.puntos_sugeridos : [])
       setPreviewStep(true)
       setPreviewLoading(false)
+      savePreviewState({
+        previewData: data,
+        inputType: mode,
+        inputText: inputText.trim(),
+        occasion,
+        translation,
+        duration,
+        customInstructions: customInstructions.trim(),
+      })
       checkScriptureReuse(data.pasaje_central)
     } catch (err) {
       setPreviewError('No se pudo conectar con el servidor. Intenta de nuevo.')
@@ -261,6 +304,7 @@ export function Generate() {
         return
       }
 
+      clearPreviewState()
       navigate('/result', { state: { result: data } })
     } catch (err) {
       setError('No se pudo conectar con el servidor. Intenta de nuevo.')
@@ -666,7 +710,7 @@ function PreviewCard({
           onClick={onBack}
           className="w-full text-center text-sm text-muted-foreground underline underline-offset-2 hover:text-foreground"
         >
-          Volver al input
+          Volver al formulario
         </button>
       </div>
     </div>
