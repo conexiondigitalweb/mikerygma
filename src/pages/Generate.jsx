@@ -5,6 +5,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { INPUT_TYPES, TRANSLATIONS, OCCASIONS, DURATIONS, LOADING_MESSAGES } from '@/lib/constants'
 import { canUseFeature } from '@/lib/planHelpers'
+import { parseReference } from '@/lib/scriptureParser'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -17,6 +18,11 @@ import { UpgradePrompt } from '@/components/UpgradePrompt'
 import { cn } from '@/lib/utils'
 
 const CUSTOM_INSTRUCTIONS_MAX = 500
+
+function formatDate(dateString) {
+  if (!dateString) return ''
+  return new Date(dateString).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
+}
 
 const MODE_FEATURE_KEYS = {
   pasaje: 'mode_pasaje',
@@ -56,6 +62,7 @@ export function Generate() {
   const [editedTitulo, setEditedTitulo] = useState('')
   const [editedTesis, setEditedTesis] = useState('')
   const [editedPuntos, setEditedPuntos] = useState([])
+  const [scriptureWarning, setScriptureWarning] = useState(null)
 
   useEffect(() => {
     if (!user) return
@@ -108,6 +115,32 @@ export function Generate() {
     setEditedTitulo('')
     setEditedTesis('')
     setEditedPuntos([])
+    setScriptureWarning(null)
+  }
+
+  const checkScriptureReuse = async (pasajeCentral) => {
+    if (!pasajeCentral) {
+      setScriptureWarning(null)
+      return
+    }
+
+    const parsedRef = parseReference(pasajeCentral)
+    const base = supabase
+      .from('scripture_usage')
+      .select('created_at, generations(title, created_at)')
+      .eq('user_id', user.id)
+      .eq('usage_type', 'central')
+      .eq('book', parsedRef.book)
+    const filtered = parsedRef.chapter === null ? base.is('chapter', null) : base.eq('chapter', parsedRef.chapter)
+
+    const { data } = await filtered.order('created_at', { ascending: false }).limit(1)
+    const match = data?.[0]
+
+    setScriptureWarning(
+      match?.generations
+        ? { date: match.generations.created_at, title: match.generations.title || 'un mensaje anterior' }
+        : null
+    )
   }
 
   const handleTranscribe = async () => {
@@ -147,6 +180,7 @@ export function Generate() {
 
     setPreviewError('')
     setPreviewLoading(true)
+    setScriptureWarning(null)
 
     try {
       const response = await fetch('/api/preview', {
@@ -177,6 +211,7 @@ export function Generate() {
       setEditedPuntos(Array.isArray(data.puntos_sugeridos) ? data.puntos_sugeridos : [])
       setPreviewStep(true)
       setPreviewLoading(false)
+      checkScriptureReuse(data.pasaje_central)
     } catch (err) {
       setPreviewError('No se pudo conectar con el servidor. Intenta de nuevo.')
       setPreviewLoading(false)
@@ -301,19 +336,37 @@ export function Generate() {
           {previewLoading ? (
             <PreviewLoading />
           ) : previewStep && preview ? (
-            <PreviewCard
-              preview={preview}
-              editable={canEditPreview}
-              editedTitulo={editedTitulo}
-              setEditedTitulo={setEditedTitulo}
-              editedTesis={editedTesis}
-              setEditedTesis={setEditedTesis}
-              editedPuntos={editedPuntos}
-              setEditedPuntos={setEditedPuntos}
-              onConfirm={() => handleGenerate(true)}
-              onRegenerate={fetchPreview}
-              onBack={resetPreviewState}
-            />
+            <>
+              <PreviewCard
+                preview={preview}
+                editable={canEditPreview}
+                editedTitulo={editedTitulo}
+                setEditedTitulo={setEditedTitulo}
+                editedTesis={editedTesis}
+                setEditedTesis={setEditedTesis}
+                editedPuntos={editedPuntos}
+                setEditedPuntos={setEditedPuntos}
+                onConfirm={() => handleGenerate(true)}
+                onRegenerate={fetchPreview}
+                onBack={resetPreviewState}
+              />
+              {scriptureWarning && (
+                <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground">
+                  <p>
+                    📖 Ya usaste este pasaje el {formatDate(scriptureWarning.date)} en "{scriptureWarning.title}".
+                    ¿Deseas continuar o elegir otro enfoque?
+                  </p>
+                  <div className="flex flex-wrap gap-3">
+                    <Button type="button" size="sm" variant="outline" onClick={() => handleGenerate(true)}>
+                      Continuar de todos modos
+                    </Button>
+                    <Button type="button" size="sm" variant="outline" onClick={fetchPreview}>
+                      Proponer otro enfoque
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           ) : (
             <>
               {isYoutube ? (

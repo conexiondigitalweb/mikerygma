@@ -52,6 +52,14 @@ export const INPUT_TYPES = [
   { value: 'youtube', label: 'Desde un video de YouTube', icon: '🎬', placeholder: 'Pega la URL de cualquier video de YouTube (prédicas, enseñanzas, conferencias, podcasts...)' },
 ]
 
+export const LIBRARY_STATUSES = [
+  { value: 'borrador', label: 'Borrador', badgeClass: 'bg-secondary text-secondary-foreground' },
+  { value: 'revisado', label: 'Revisado', badgeClass: 'bg-[#5B7FA6] text-white' },
+  { value: 'predicado', label: 'Predicado', badgeClass: 'bg-[#7A9174] text-white' },
+  { value: 'publicado', label: 'Publicado', badgeClass: 'bg-primary text-primary-foreground' },
+  { value: 'archivado', label: 'Archivado', badgeClass: 'bg-destructive/15 text-destructive' },
+]
+
 export const PASTORAL_TONES = [
   { value: 'pastoral_calido', label: 'Pastoral cálido — cercano, empático, como un amigo que camina contigo' },
   { value: 'profetico_desafiante', label: 'Profético desafiante — directo, confrontador con amor, urgente' },
@@ -132,6 +140,7 @@ export const PLANS = {
       watermark: true,
       pdf_export: false,
       edit_preview: false,
+      full_library: false,
     },
     display_features: [
       '3 generaciones al mes',
@@ -157,6 +166,7 @@ export const PLANS = {
       watermark: false,
       pdf_export: false,
       edit_preview: true,
+      full_library: true,
     },
     display_features: [
       '15 generaciones al mes',
@@ -184,6 +194,7 @@ export const PLANS = {
       watermark: false,
       pdf_export: true,
       edit_preview: true,
+      full_library: true,
     },
     display_features: [
       '40 generaciones al mes',

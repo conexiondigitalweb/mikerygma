@@ -34,6 +34,9 @@ export function Navbar() {
               <Link to="/dashboard">Dashboard</Link>
             </Button>
             <Button variant="ghost" className="hidden sm:inline-flex" asChild>
+              <Link to="/library">Biblioteca</Link>
+            </Button>
+            <Button variant="ghost" className="hidden sm:inline-flex" asChild>
               <Link to="/generate">Nueva generación</Link>
             </Button>
             <DropdownMenu>
@@ -49,6 +52,9 @@ export function Navbar() {
               <DropdownMenuContent align="end">
                 <DropdownMenuItem asChild className="sm:hidden">
                   <Link to="/dashboard">Dashboard</Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild className="sm:hidden">
+                  <Link to="/library">Biblioteca</Link>
                 </DropdownMenuItem>
                 <DropdownMenuItem asChild className="sm:hidden">
                   <Link to="/generate">Nueva generación</Link>

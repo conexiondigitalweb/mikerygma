@@ -12,6 +12,7 @@ import {
   PASTORAL_CLOSINGS,
 } from '../src/lib/constants.js'
 import { canUseFeature } from '../src/lib/planHelpers.js'
+import { parseReference } from '../src/lib/scriptureParser.js'
 
 const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
@@ -531,6 +532,8 @@ export default async function handler(req, res) {
         output_prayer: parsed.oracion_cierre ?? null,
         model_used: MODEL,
         tokens_used: tokensUsed,
+        title: parsed.sermon?.titulo ?? null,
+        pasaje_central: parsed.sermon?.pasaje_central ?? null,
       })
       .select()
       .single()
@@ -545,6 +548,42 @@ export default async function handler(req, res) {
     console.error('Error inesperado guardando la generación:', err)
     res.status(500).json({ error: 'El contenido se generó pero no se pudo guardar. Intenta de nuevo.' })
     return
+  }
+
+  try {
+    const scriptureRows = []
+
+    if (parsed.sermon?.pasaje_central) {
+      scriptureRows.push({ reference: parsed.sermon.pasaje_central, usage_type: 'central' })
+    }
+    for (const punto of parsed.sermon?.puntos ?? []) {
+      for (const ref of punto.pasajes_apoyo ?? []) {
+        if (ref) scriptureRows.push({ reference: ref, usage_type: 'apoyo' })
+      }
+    }
+
+    if (scriptureRows.length > 0) {
+      const { error: scriptureError } = await supabaseAdmin.from('scripture_usage').insert(
+        scriptureRows.map(({ reference, usage_type }) => {
+          const parsedRef = parseReference(reference)
+          return {
+            user_id,
+            generation_id: generationRow.id,
+            reference,
+            book: parsedRef.book,
+            chapter: parsedRef.chapter,
+            verse_start: parsedRef.verse_start,
+            verse_end: parsedRef.verse_end,
+            usage_type,
+          }
+        })
+      )
+      if (scriptureError) {
+        console.error('Error guardando scripture_usage:', scriptureError)
+      }
+    }
+  } catch (err) {
+    console.error('Error inesperado guardando scripture_usage:', err)
   }
 
   try {

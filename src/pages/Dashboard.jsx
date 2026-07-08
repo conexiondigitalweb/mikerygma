@@ -2,19 +2,17 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { INPUT_TYPES, OCCASIONS } from '@/lib/constants'
-import { canUseFeature } from '@/lib/planHelpers'
+import { LIBRARY_STATUSES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { GenerationCounter } from '@/components/GenerationCounter'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
 
-const FREE_HISTORY_LIMIT = 3
+const RECENT_LIMIT = 5
 
-function truncate(text, length = 100) {
-  if (!text) return ''
-  return text.length > length ? `${text.slice(0, length)}…` : text
+function statusMeta(status) {
+  return LIBRARY_STATUSES.find((s) => s.value === status) ?? LIBRARY_STATUSES[0]
 }
 
 export function Dashboard() {
@@ -40,10 +38,10 @@ export function Dashboard() {
 
     supabase
       .from('generations')
-      .select('*')
+      .select('id, title, status, created_at, input_type, input_text, occasion, translation, output_sermon, output_devotional, output_social, output_prayer')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
-      .limit(10)
+      .limit(RECENT_LIMIT)
       .then(({ data }) => {
         setGenerations(data ?? [])
         setLoadingHistory(false)
@@ -70,9 +68,6 @@ export function Dashboard() {
   }
 
   const userPlan = profile?.plan ?? 'free'
-  const hasFullHistory = canUseFeature(userPlan, 'full_history')
-  const visibleGenerations = hasFullHistory ? generations : generations.slice(0, FREE_HISTORY_LIMIT)
-  const hasMoreHidden = !hasFullHistory && generations.length > FREE_HISTORY_LIMIT
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-16">
@@ -103,7 +98,12 @@ export function Dashboard() {
       </div>
 
       <div className="mt-12">
-        <h2 className="text-xl font-semibold text-foreground">Tu historial</h2>
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="text-xl font-semibold text-foreground">Últimos 5 mensajes</h2>
+          <Link to="/library" className="shrink-0 text-sm font-medium text-primary hover:underline">
+            Ver toda mi biblioteca →
+          </Link>
+        </div>
 
         {!loadingHistory && generations.length === 0 && (
           <p className="mt-3 text-sm text-muted-foreground">
@@ -111,31 +111,27 @@ export function Dashboard() {
           </p>
         )}
 
-        <div className="mt-4 space-y-3">
-          {visibleGenerations.map((generation) => {
-            const inputType = INPUT_TYPES.find((t) => t.value === generation.input_type)
-            const occasion = OCCASIONS.find((o) => o.value === generation.occasion)
+        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          {generations.map((generation) => {
+            const status = statusMeta(generation.status)
             return (
               <Card key={generation.id}>
-                <CardContent className="flex flex-wrap items-center justify-between gap-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <Badge variant="secondary">
-                        {inputType?.icon} {inputType?.label ?? generation.input_type}
-                      </Badge>
-                      {occasion && <Badge variant="outline">{occasion.label}</Badge>}
-                      <span className="text-xs text-muted-foreground">
-                        {new Date(generation.created_at).toLocaleDateString('es-ES', {
-                          day: '2-digit',
-                          month: 'short',
-                          year: 'numeric',
-                        })}
-                      </span>
-                    </div>
-                    <p className="mt-2 truncate text-sm text-foreground">
-                      {truncate(generation.input_text)}
-                    </p>
+                <CardContent className="space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <Badge className={status.badgeClass} variant="secondary">
+                      {status.label}
+                    </Badge>
+                    <span className="shrink-0 text-xs text-muted-foreground">
+                      {new Date(generation.created_at).toLocaleDateString('es-ES', {
+                        day: '2-digit',
+                        month: 'short',
+                        year: 'numeric',
+                      })}
+                    </span>
                   </div>
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {generation.title || 'Sin título'}
+                  </p>
                   <Button variant="outline" size="sm" onClick={() => handleViewResult(generation)}>
                     Ver resultado
                   </Button>
@@ -144,15 +140,6 @@ export function Dashboard() {
             )
           })}
         </div>
-
-        {hasMoreHidden && (
-          <UpgradePrompt
-            variant="inline"
-            requiredPlan="mensajero"
-            message="Tu historial completo tiene más generaciones."
-            className="mt-4"
-          />
-        )}
       </div>
     </div>
   )

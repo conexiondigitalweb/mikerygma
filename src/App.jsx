@@ -7,6 +7,7 @@ import { Onboarding } from '@/pages/Onboarding'
 import { Dashboard } from '@/pages/Dashboard'
 import { Generate } from '@/pages/Generate'
 import { Result } from '@/pages/Result'
+import { Library } from '@/pages/Library'
 import { Pricing } from '@/pages/Pricing'
 import { Profile } from '@/pages/Profile'
 
@@ -46,6 +47,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Result />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/library"
+          element={
+            <ProtectedRoute>
+              <Library />
             </ProtectedRoute>
           }
         />
