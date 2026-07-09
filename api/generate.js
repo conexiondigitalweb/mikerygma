@@ -12,9 +12,12 @@ import {
   PASTORAL_CLOSINGS,
 } from '../src/lib/constants.js'
 import { canUseFeature } from '../src/lib/planHelpers.js'
-import { parseReference } from '../src/lib/scriptureParser.js'
 
-const MODEL = 'claude-haiku-4-5'
+export const config = {
+  supportsResponseStreaming: true,
+}
+
+const MODEL = 'claude-sonnet-4-6'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_TOKENS = 3500
 
@@ -352,35 +355,6 @@ El JSON debe tener exactamente esta estructura:
 }`
 }
 
-function cleanJsonResponse(text) {
-  let cleaned = text.trim()
-  if (cleaned.startsWith('```')) {
-    cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '')
-  }
-  return cleaned.trim()
-}
-
-function repairTruncatedJson(text) {
-  const lastBraceIndex = text.lastIndexOf('}')
-  if (lastBraceIndex === -1) return null
-
-  let candidate = text.slice(0, lastBraceIndex + 1)
-
-  const openBraces = (candidate.match(/{/g) || []).length
-  const closeBraces = (candidate.match(/}/g) || []).length
-  const openBrackets = (candidate.match(/\[/g) || []).length
-  const closeBrackets = (candidate.match(/\]/g) || []).length
-
-  candidate += ']'.repeat(Math.max(openBrackets - closeBrackets, 0))
-  candidate += '}'.repeat(Math.max(openBraces - closeBraces, 0))
-
-  try {
-    return JSON.parse(candidate)
-  } catch {
-    return null
-  }
-}
-
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Método no permitido' })
@@ -465,10 +439,9 @@ export default async function handler(req, res) {
     previewContext: preview_context ?? null,
   })
 
-  let parsed
-  let usage
+  let anthropicResponse
   try {
-    const response = await fetch(ANTHROPIC_URL, {
+    anthropicResponse = await fetch(ANTHROPIC_URL, {
       method: 'POST',
       headers: {
         'x-api-key': anthropicApiKey,
@@ -478,133 +451,64 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_TOKENS,
+        stream: true,
         messages: [{ role: 'user', content: prompt }],
       }),
     })
-
-    if (!response.ok) {
-      const errorBody = await response.text()
-      console.error('Error de la API de Anthropic:', response.status, errorBody)
-      res.status(502).json({ error: 'La IA no pudo generar el contenido en este momento. Intenta de nuevo en unos segundos.' })
-      return
-    }
-
-    const data = await response.json()
-    const rawText = data?.content?.[0]?.text ?? ''
-    usage = data?.usage
-
-    const cleanedText = cleanJsonResponse(rawText)
-    try {
-      parsed = JSON.parse(cleanedText)
-    } catch (parseErr) {
-      const repaired = repairTruncatedJson(cleanedText)
-      if (repaired) {
-        console.warn('Respuesta de Claude truncada: se reparó el JSON recortando el contenido incompleto.')
-        parsed = repaired
-      } else {
-        console.error('Error parseando JSON de Claude:', parseErr, rawText)
-        res.status(502).json({ error: 'No se pudo interpretar la respuesta de la IA. Intenta de nuevo.' })
-        return
-      }
-    }
   } catch (err) {
     console.error('Error llamando a la API de Anthropic:', err)
     res.status(502).json({ error: 'No se pudo conectar con la IA. Verifica tu conexión e intenta de nuevo.' })
     return
   }
 
-  let generationRow
-  try {
-    const tokensUsed = usage ? (usage.input_tokens ?? 0) + (usage.output_tokens ?? 0) : null
-
-    const { data, error } = await supabaseAdmin
-      .from('generations')
-      .insert({
-        user_id,
-        input_type,
-        input_text,
-        occasion,
-        translation,
-        custom_instructions: effectiveCustomInstructions,
-        output_sermon: parsed.sermon ?? null,
-        output_devotional: parsed.devocional ?? null,
-        output_social: parsed.redes ?? null,
-        output_prayer: parsed.oracion_cierre ?? null,
-        model_used: MODEL,
-        tokens_used: tokensUsed,
-        title: parsed.sermon?.titulo ?? null,
-        pasaje_central: parsed.sermon?.pasaje_central ?? null,
-      })
-      .select()
-      .single()
-
-    if (error) {
-      console.error('Error guardando la generación:', error)
-      res.status(500).json({ error: 'El contenido se generó pero no se pudo guardar. Intenta de nuevo.' })
-      return
-    }
-    generationRow = data
-  } catch (err) {
-    console.error('Error inesperado guardando la generación:', err)
-    res.status(500).json({ error: 'El contenido se generó pero no se pudo guardar. Intenta de nuevo.' })
+  if (!anthropicResponse.ok) {
+    const errorBody = await anthropicResponse.text()
+    console.error('Error de la API de Anthropic:', anthropicResponse.status, errorBody)
+    res.status(502).json({ error: 'La IA no pudo generar el contenido en este momento. Intenta de nuevo en unos segundos.' })
     return
   }
 
-  try {
-    const scriptureRows = []
-
-    if (parsed.sermon?.pasaje_central) {
-      scriptureRows.push({ reference: parsed.sermon.pasaje_central, usage_type: 'central' })
-    }
-    for (const punto of parsed.sermon?.puntos ?? []) {
-      for (const ref of punto.pasajes_apoyo ?? []) {
-        if (ref) scriptureRows.push({ reference: ref, usage_type: 'apoyo' })
-      }
-    }
-
-    if (scriptureRows.length > 0) {
-      const { error: scriptureError } = await supabaseAdmin.from('scripture_usage').insert(
-        scriptureRows.map(({ reference, usage_type }) => {
-          const parsedRef = parseReference(reference)
-          return {
-            user_id,
-            generation_id: generationRow.id,
-            reference,
-            book: parsedRef.book,
-            chapter: parsedRef.chapter,
-            verse_start: parsedRef.verse_start,
-            verse_end: parsedRef.verse_end,
-            usage_type,
-          }
-        })
-      )
-      if (scriptureError) {
-        console.error('Error guardando scripture_usage:', scriptureError)
-      }
-    }
-  } catch (err) {
-    console.error('Error inesperado guardando scripture_usage:', err)
-  }
-
-  try {
-    await supabaseAdmin
-      .from('profiles')
-      .update({ generations_used: profile.generations_used + 1 })
-      .eq('id', user_id)
-  } catch (err) {
-    console.error('Error actualizando el contador de generaciones:', err)
-  }
-
-  res.status(200).json({
-    id: generationRow.id,
-    created_at: generationRow.created_at,
-    input_type,
-    input_text,
-    occasion,
-    translation,
-    sermon: parsed.sermon,
-    devocional: parsed.devocional,
-    redes: parsed.redes,
-    oracion_cierre: parsed.oracion_cierre,
+  res.writeHead(200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'X-Accel-Buffering': 'no',
   })
+
+  const reader = anthropicResponse.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const dataStr = line.slice(6).trim()
+        if (!dataStr || dataStr === '[DONE]') continue
+
+        let event
+        try {
+          event = JSON.parse(dataStr)
+        } catch {
+          continue
+        }
+
+        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          res.write(event.delta.text)
+        } else if (event.type === 'error') {
+          console.error('Error en el stream de Anthropic:', event.error)
+        }
+      }
+    }
+  } catch (err) {
+    console.error('Error leyendo el stream de Anthropic:', err)
+  }
+
+  res.end()
 }

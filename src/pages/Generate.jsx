@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase'
 import { INPUT_TYPES, TRANSLATIONS, OCCASIONS, DURATIONS, LOADING_MESSAGES } from '@/lib/constants'
 import { canUseFeature } from '@/lib/planHelpers'
 import { parseReference } from '@/lib/scriptureParser'
+import { cleanJsonResponse, repairTruncatedJson } from '@/lib/jsonRepair'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -113,6 +114,7 @@ export function Generate() {
   const [transcriptWordCount, setTranscriptWordCount] = useState(0)
 
   const [generating, setGenerating] = useState(false)
+  const [streamedChars, setStreamedChars] = useState(0)
   const [error, setError] = useState('')
   const [messageIndex, setMessageIndex] = useState(0)
   const [lockedModalFeature, setLockedModalFeature] = useState(null)
@@ -304,6 +306,7 @@ export function Generate() {
     setError('')
     setGenerating(true)
     setMessageIndex(0)
+    setStreamedChars(0)
 
     const previewContext = usePreviewContext && preview
       ? {
@@ -330,17 +333,92 @@ export function Generate() {
         }),
       })
 
-      const data = await response.json()
-
       if (!response.ok) {
+        const data = await response.json().catch(() => ({}))
         clearGeneratingFlag()
         setError(data.error ?? 'Ocurrió un error al generar tu contenido.')
         setGenerating(false)
         return
       }
 
+      const reader = response.body.getReader()
+      const decoder = new TextDecoder()
+      let rawText = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        rawText += decoder.decode(value, { stream: true })
+        setStreamedChars(rawText.length)
+      }
+
+      const cleanedText = cleanJsonResponse(rawText)
+      let parsed
+      try {
+        parsed = JSON.parse(cleanedText)
+      } catch (parseErr) {
+        const repaired = repairTruncatedJson(cleanedText)
+        if (!repaired) {
+          clearGeneratingFlag()
+          setError('No se pudo interpretar la respuesta de la IA. Intenta de nuevo.')
+          setGenerating(false)
+          return
+        }
+        parsed = repaired
+      }
+
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+
+      const saveResponse = await fetch('/api/save-generation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session?.access_token ?? ''}`,
+        },
+        body: JSON.stringify({
+          user_id: user.id,
+          input_type: mode,
+          input_text: inputText.trim(),
+          occasion,
+          translation,
+          custom_instructions: customInstructions.trim(),
+          model_used: 'claude-sonnet-4-6',
+          sermon: parsed.sermon,
+          devocional: parsed.devocional,
+          redes: parsed.redes,
+          oracion_cierre: parsed.oracion_cierre,
+        }),
+      })
+
+      const saveData = await saveResponse.json()
+
+      if (!saveResponse.ok) {
+        clearGeneratingFlag()
+        setError(saveData.error ?? 'El contenido se generó pero no se pudo guardar. Intenta de nuevo.')
+        setGenerating(false)
+        return
+      }
+
+      setProfile((prev) => (prev ? { ...prev, generations_used: prev.generations_used + 1 } : prev))
       clearGeneratingFlag()
-      navigate('/result', { state: { result: data } })
+      navigate('/result', {
+        state: {
+          result: {
+            id: saveData.id,
+            created_at: saveData.created_at,
+            input_type: mode,
+            input_text: inputText.trim(),
+            occasion,
+            translation,
+            sermon: parsed.sermon,
+            devocional: parsed.devocional,
+            redes: parsed.redes,
+            oracion_cierre: parsed.oracion_cierre,
+          },
+        },
+      })
     } catch (err) {
       clearGeneratingFlag()
       setError('No se pudo conectar con el servidor. Intenta de nuevo.')
@@ -349,7 +427,7 @@ export function Generate() {
   }
 
   if (generating) {
-    return <GeneratingOverlay messageIndex={messageIndex} />
+    return <GeneratingOverlay messageIndex={messageIndex} streamedChars={streamedChars} />
   }
 
   const isYoutube = mode === 'youtube'
@@ -763,13 +841,16 @@ function PreviewCard({
   )
 }
 
-function GeneratingOverlay({ messageIndex }) {
+function GeneratingOverlay({ messageIndex, streamedChars }) {
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-background px-4 text-center">
       <div className="h-16 w-16 animate-spin rounded-full border-4 border-secondary border-t-primary" />
       <p key={messageIndex} className="animate-in fade-in duration-500 text-xl font-medium text-foreground">
-        {LOADING_MESSAGES[messageIndex]}
+        {streamedChars > 0 ? 'Recibiendo tu kerygma...' : LOADING_MESSAGES[messageIndex]}
       </p>
+      {streamedChars > 0 && (
+        <p className="text-sm text-muted-foreground">{streamedChars} caracteres recibidos</p>
+      )}
       <div className="h-1.5 w-64 overflow-hidden rounded-full bg-secondary">
         <div className="h-full w-1/3 animate-pulse rounded-full bg-primary" />
       </div>

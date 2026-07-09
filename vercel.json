@@ -1,9 +1,12 @@
 {
   "functions": {
     "api/generate.js": {
-      "maxDuration": 60
+      "maxDuration": 300
     },
     "api/preview.js": {
+      "maxDuration": 30
+    },
+    "api/save-generation.js": {
       "maxDuration": 30
     }
   },
