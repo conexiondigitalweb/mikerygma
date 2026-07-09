@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
@@ -45,6 +45,37 @@ function clearPreviewState() {
   }
 }
 
+const GENERATING_STORAGE_KEY = 'mikerygma_generating'
+
+function setGeneratingFlag() {
+  try {
+    sessionStorage.setItem(GENERATING_STORAGE_KEY, 'true')
+  } catch {
+    // no-op
+  }
+}
+
+function clearGeneratingFlag() {
+  try {
+    sessionStorage.removeItem(GENERATING_STORAGE_KEY)
+  } catch {
+    // no-op
+  }
+}
+
+// Se lee y limpia una sola vez al montar: si el valor era "true", una generación
+// quedó en curso cuando el usuario se fue (remount por foco, cierre de pestaña, etc.)
+// — no se puede saber si terminó, así que solo se avisa y se manda a la biblioteca.
+function consumeGeneratingFlag() {
+  try {
+    const wasGenerating = sessionStorage.getItem(GENERATING_STORAGE_KEY) === 'true'
+    if (wasGenerating) sessionStorage.removeItem(GENERATING_STORAGE_KEY)
+    return wasGenerating
+  } catch {
+    return false
+  }
+}
+
 function formatDate(dateString) {
   if (!dateString) return ''
   return new Date(dateString).toLocaleDateString('es-ES', { day: '2-digit', month: 'short', year: 'numeric' })
@@ -67,6 +98,7 @@ export function Generate() {
   // Se lee una sola vez por montaje: si Supabase Auth remonta este componente al
   // recuperar el foco de la pestaña, esto recupera el preview en curso.
   const [restoredPreview] = useState(() => readStoredPreview())
+  const [showGenerationRecoveryNotice] = useState(() => consumeGeneratingFlag())
 
   const [mode, setMode] = useState(() => restoredPreview?.inputType ?? null)
   const [inputText, setInputText] = useState(() => restoredPreview?.inputText ?? '')
@@ -267,6 +299,8 @@ export function Generate() {
   }
 
   const handleGenerate = async (usePreviewContext) => {
+    clearPreviewState()
+    setGeneratingFlag()
     setError('')
     setGenerating(true)
     setMessageIndex(0)
@@ -299,14 +333,16 @@ export function Generate() {
       const data = await response.json()
 
       if (!response.ok) {
+        clearGeneratingFlag()
         setError(data.error ?? 'Ocurrió un error al generar tu contenido.')
         setGenerating(false)
         return
       }
 
-      clearPreviewState()
+      clearGeneratingFlag()
       navigate('/result', { state: { result: data } })
     } catch (err) {
+      clearGeneratingFlag()
       setError('No se pudo conectar con el servidor. Intenta de nuevo.')
       setGenerating(false)
     }
@@ -329,6 +365,16 @@ export function Generate() {
       <p className="mt-2 text-muted-foreground">
         Elige de dónde quieres partir para preparar tu mensaje.
       </p>
+
+      {showGenerationRecoveryNotice && (
+        <div className="mt-4 rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground">
+          Tu última generación puede estar lista. Revisa tu{' '}
+          <Link to="/library" className="font-medium text-primary underline underline-offset-2">
+            Biblioteca
+          </Link>
+          .
+        </div>
+      )}
 
       {!loadingProfile && profile && (
         <div className="mt-4">
