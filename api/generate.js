@@ -12,6 +12,7 @@ import {
   PASTORAL_CLOSINGS,
 } from '../src/lib/constants.js'
 import { canUseFeature } from '../src/lib/planHelpers.js'
+import { STREAM_ERROR_MARKER } from '../src/lib/streamMarkers.js'
 
 export const config = {
   supportsResponseStreaming: true,
@@ -477,9 +478,10 @@ export default async function handler(req, res) {
   const reader = anthropicResponse.body.getReader()
   const decoder = new TextDecoder()
   let buffer = ''
+  let streamErrorMessage = null
 
   try {
-    while (true) {
+    streamLoop: while (true) {
       const { done, value } = await reader.read()
       if (done) break
 
@@ -503,11 +505,18 @@ export default async function handler(req, res) {
           res.write(event.delta.text)
         } else if (event.type === 'error') {
           console.error('Error en el stream de Anthropic:', event.error)
+          streamErrorMessage = event.error?.message || 'La IA interrumpió la generación.'
+          break streamLoop
         }
       }
     }
   } catch (err) {
     console.error('Error leyendo el stream de Anthropic:', err)
+    streamErrorMessage = streamErrorMessage || 'Se perdió la conexión con la IA durante la generación.'
+  }
+
+  if (streamErrorMessage) {
+    res.write(`${STREAM_ERROR_MARKER}${streamErrorMessage}`)
   }
 
   res.end()

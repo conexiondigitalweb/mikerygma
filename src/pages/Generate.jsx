@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -7,6 +7,7 @@ import { INPUT_TYPES, TRANSLATIONS, OCCASIONS, DURATIONS, LOADING_MESSAGES } fro
 import { canUseFeature } from '@/lib/planHelpers'
 import { parseReference } from '@/lib/scriptureParser'
 import { cleanJsonResponse, repairTruncatedJson } from '@/lib/jsonRepair'
+import { STREAM_ERROR_MARKER } from '@/lib/streamMarkers'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -130,6 +131,18 @@ export function Generate() {
     return Array.isArray(puntos) ? puntos : []
   })
   const [scriptureWarning, setScriptureWarning] = useState(null)
+
+  // Evita invocaciones concurrentes de handleGenerate (doble clic, etc.): sin esto,
+  // dos streams simultáneos escriben sobre el mismo setStreamedChars y el que responde
+  // más lento pisa el progreso del otro, y si cualquiera falla se corta la generación
+  // "buena" que seguía en curso.
+  const generatingRef = useRef(false)
+  const requestIdRef = useRef(0)
+  const abortControllerRef = useRef(null)
+
+  useEffect(() => {
+    return () => abortControllerRef.current?.abort()
+  }, [])
 
   useEffect(() => {
     if (!user) return
@@ -301,6 +314,16 @@ export function Generate() {
   }
 
   const handleGenerate = async (usePreviewContext) => {
+    // Guarda de reentrancia síncrona: sin esto, un doble clic (u otro disparo
+    // duplicado) antes de que React desmonte el botón lanza dos streams a la vez.
+    if (generatingRef.current) return
+    generatingRef.current = true
+    const requestId = ++requestIdRef.current
+    const isStale = () => requestIdRef.current !== requestId
+
+    const controller = new AbortController()
+    abortControllerRef.current = controller
+
     clearPreviewState()
     setGeneratingFlag()
     setError('')
@@ -316,10 +339,18 @@ export function Generate() {
         }
       : undefined
 
+    const fail = (message) => {
+      if (isStale()) return
+      clearGeneratingFlag()
+      setError(message)
+      setGenerating(false)
+    }
+
     try {
       const response = await fetch('/api/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: controller.signal,
         body: JSON.stringify({
           input_type: mode,
           input_text: inputText.trim(),
@@ -333,11 +364,11 @@ export function Generate() {
         }),
       })
 
+      if (isStale()) return
+
       if (!response.ok) {
         const data = await response.json().catch(() => ({}))
-        clearGeneratingFlag()
-        setError(data.error ?? 'Ocurrió un error al generar tu contenido.')
-        setGenerating(false)
+        fail(data.error ?? 'Ocurrió un error al generar tu contenido.')
         return
       }
 
@@ -347,9 +378,17 @@ export function Generate() {
 
       while (true) {
         const { done, value } = await reader.read()
+        if (isStale()) return
         if (done) break
         rawText += decoder.decode(value, { stream: true })
-        setStreamedChars(rawText.length)
+        setStreamedChars((prev) => Math.max(prev, rawText.length))
+      }
+
+      const markerIndex = rawText.indexOf(STREAM_ERROR_MARKER)
+      if (markerIndex !== -1) {
+        const reason = rawText.slice(markerIndex + STREAM_ERROR_MARKER.length).trim()
+        fail(reason || 'La IA interrumpió la generación a mitad de camino. Intenta de nuevo.')
+        return
       }
 
       const cleanedText = cleanJsonResponse(rawText)
@@ -359,9 +398,7 @@ export function Generate() {
       } catch (parseErr) {
         const repaired = repairTruncatedJson(cleanedText)
         if (!repaired) {
-          clearGeneratingFlag()
-          setError('No se pudo interpretar la respuesta de la IA. Intenta de nuevo.')
-          setGenerating(false)
+          fail('No se pudo interpretar la respuesta de la IA. Intenta de nuevo.')
           return
         }
         parsed = repaired
@@ -371,12 +408,15 @@ export function Generate() {
         data: { session },
       } = await supabase.auth.getSession()
 
+      if (isStale()) return
+
       const saveResponse = await fetch('/api/save-generation', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session?.access_token ?? ''}`,
         },
+        signal: controller.signal,
         body: JSON.stringify({
           user_id: user.id,
           input_type: mode,
@@ -394,10 +434,10 @@ export function Generate() {
 
       const saveData = await saveResponse.json()
 
+      if (isStale()) return
+
       if (!saveResponse.ok) {
-        clearGeneratingFlag()
-        setError(saveData.error ?? 'El contenido se generó pero no se pudo guardar. Intenta de nuevo.')
-        setGenerating(false)
+        fail(saveData.error ?? 'El contenido se generó pero no se pudo guardar. Intenta de nuevo.')
         return
       }
 
@@ -420,9 +460,10 @@ export function Generate() {
         },
       })
     } catch (err) {
-      clearGeneratingFlag()
-      setError('No se pudo conectar con el servidor. Intenta de nuevo.')
-      setGenerating(false)
+      if (err?.name === 'AbortError' || isStale()) return
+      fail('No se pudo conectar con el servidor. Intenta de nuevo.')
+    } finally {
+      if (!isStale()) generatingRef.current = false
     }
   }
 
