@@ -132,10 +132,14 @@ export function Generate() {
   const [previewLoading, setPreviewLoading] = useState(false)
   const [previewError, setPreviewError] = useState('')
   const [preview, setPreview] = useState(() => restoredPreview?.previewData ?? null)
-  const [editedTitulo, setEditedTitulo] = useState(() => restoredPreview?.previewData?.titulo_propuesto ?? '')
-  const [editedTesis, setEditedTesis] = useState(() => restoredPreview?.previewData?.tesis ?? '')
+  const [editedTitulo, setEditedTitulo] = useState(
+    () => restoredPreview?.editedTitulo ?? restoredPreview?.previewData?.titulo_propuesto ?? ''
+  )
+  const [editedTesis, setEditedTesis] = useState(
+    () => restoredPreview?.editedTesis ?? restoredPreview?.previewData?.tesis ?? ''
+  )
   const [editedPuntos, setEditedPuntos] = useState(() => {
-    const puntos = restoredPreview?.previewData?.puntos_sugeridos
+    const puntos = restoredPreview?.editedPuntos ?? restoredPreview?.previewData?.puntos_sugeridos
     return Array.isArray(puntos) ? puntos : []
   })
   const [scriptureWarning, setScriptureWarning] = useState(null)
@@ -173,6 +177,26 @@ export function Generate() {
     }, 3000)
     return () => clearInterval(interval)
   }, [generating])
+
+  // Mantiene sessionStorage sincronizado con TODO el estado del preview, no solo
+  // con la respuesta cruda de la API: si no se persisten también las ediciones
+  // (título/tesis/puntos), un remount (p. ej. por foco recuperado en la pestaña)
+  // restaura la versión sin editar y el usuario pierde sus cambios.
+  useEffect(() => {
+    if (!previewStep || !preview) return
+    savePreviewState({
+      previewData: preview,
+      inputType: mode,
+      inputText: inputText.trim(),
+      occasion,
+      translation,
+      duration,
+      customInstructions: customInstructions.trim(),
+      editedTitulo,
+      editedTesis,
+      editedPuntos,
+    })
+  }, [previewStep, preview, mode, inputText, occasion, translation, duration, customInstructions, editedTitulo, editedTesis, editedPuntos])
 
   const userPlan = profile?.plan ?? 'free'
   const canEditPreview = canUseFeature(userPlan, 'edit_preview')
@@ -300,15 +324,6 @@ export function Generate() {
       setEditedPuntos(Array.isArray(data.puntos_sugeridos) ? data.puntos_sugeridos : [])
       setPreviewStep(true)
       setPreviewLoading(false)
-      savePreviewState({
-        previewData: data,
-        inputType: mode,
-        inputText: inputText.trim(),
-        occasion,
-        translation,
-        duration,
-        customInstructions: customInstructions.trim(),
-      })
       checkScriptureReuse(data.pasaje_central)
     } catch (err) {
       setPreviewError('No se pudo conectar con el servidor. Intenta de nuevo.')

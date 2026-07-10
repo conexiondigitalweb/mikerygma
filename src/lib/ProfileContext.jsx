@@ -15,18 +15,25 @@ async function fetchHasProfile(userId) {
 
 export function ProfileProvider({ children }) {
   const { user } = useAuth()
+  const userId = user?.id ?? null
   const [hasProfile, setHasProfile] = useState(null)
 
   const refreshProfile = useCallback(async () => {
-    if (!user) {
+    if (!userId) {
       setHasProfile(null)
       return
     }
-    setHasProfile(await fetchHasProfile(user.id))
-  }, [user])
+    setHasProfile(await fetchHasProfile(userId))
+  }, [userId])
 
+  // Depende de userId (string estable), no de `user` (objeto). Supabase emite un
+  // nuevo objeto `user` en cada onAuthStateChange — incluyendo el refresh de token
+  // silencioso que dispara al recuperar el foco de la pestaña — aunque sea el mismo
+  // usuario. Si esto dependiera de `user`, cada refresh resetearía hasProfile a null
+  // y ProtectedRoute desmontaría la página protegida (p. ej. Generate.jsx a mitad
+  // de una generación) solo por volver a la pestaña.
   useEffect(() => {
-    if (!user) {
+    if (!userId) {
       setHasProfile(null)
       return
     }
@@ -34,14 +41,14 @@ export function ProfileProvider({ children }) {
     let cancelled = false
     setHasProfile(null)
 
-    fetchHasProfile(user.id).then((result) => {
+    fetchHasProfile(userId).then((result) => {
       if (!cancelled) setHasProfile(result)
     })
 
     return () => {
       cancelled = true
     }
-  }, [user])
+  }, [userId])
 
   const value = { hasProfile, refreshProfile }
 
