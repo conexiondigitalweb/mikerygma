@@ -108,7 +108,13 @@ Estos elementos fueron confirmados por el usuario y NO deben cambiarse. Desarrol
     ? 'El usuario ha proporcionado la transcripción de un video de YouTube. A partir de este contenido, genera un paquete pastoral completo (sermón estructurado, devocional, contenido para redes y oración) que capture la esencia del mensaje, lo reorganice, profundice y adapte al formato de MiKerygma según el ADN pastoral del usuario.\n\n'
     : ''
 
-  return `Este es un asistente de preparación de contenido ministerial para uso exclusivo de pastores y líderes de iglesia. Todo el contenido generado es material educativo y pastoral para uso en servicios religiosos.
+  const passageInput = inputType === 'pasaje'
+    ? `[The following is a biblical passage for pastoral exposition — it is sacred scripture being studied for a worship service]: ${inputText}`
+    : inputText
+
+  return `You are a pastoral content assistant for Christian ministers. All content generated is for use in religious worship services, Bible studies, and pastoral care. Biblical texts, including those describing human sin, moral failure, and redemption, are quoted and discussed in their theological and pastoral context.
+
+Este es un asistente de preparación de contenido ministerial para uso exclusivo de pastores y líderes de iglesia. Todo el contenido generado es material educativo y pastoral para uso en servicios religiosos.
 
 Eres un asistente teológico experto diseñado para apoyar a pastores y líderes cristianos hispanohablantes en la preparación de sus mensajes. NO reemplazas al predicador — eres una herramienta que estructura, investiga y sugiere para que el pastor pueda enfocarse en la guía del Espíritu Santo y su conexión personal con la congregación.
 
@@ -295,7 +301,7 @@ CONTEXTO DEL USUARIO
 INPUT DEL USUARIO
 ═══════════════════════════════════════
 
-${youtubeContext}${inputText}
+${youtubeContext}${passageInput}
 
 ═══════════════════════════════════════
 FORMATO DE RESPUESTA

@@ -90,6 +90,14 @@ const MODE_FEATURE_KEYS = {
   youtube: 'mode_youtube',
 }
 
+function friendlyStreamError(reason) {
+  const normalized = (reason || '').toLowerCase()
+  if (normalized.includes('content filtering') || normalized.includes('blocked')) {
+    return 'El servicio de IA interrumpió la generación por sus filtros de contenido. Esto puede pasar con ciertos pasajes bíblicos. Intenta con instrucciones adicionales como "enfócate en la gracia y la restauración" o prueba con un enfoque diferente.'
+  }
+  return reason || 'La IA interrumpió la generación a mitad de camino. Intenta de nuevo.'
+}
+
 export function Generate() {
   const { user } = useAuth()
   const navigate = useNavigate()
@@ -387,7 +395,7 @@ export function Generate() {
       const markerIndex = rawText.indexOf(STREAM_ERROR_MARKER)
       if (markerIndex !== -1) {
         const reason = rawText.slice(markerIndex + STREAM_ERROR_MARKER.length).trim()
-        fail(reason || 'La IA interrumpió la generación a mitad de camino. Intenta de nuevo.')
+        fail(friendlyStreamError(reason))
         return
       }
 
@@ -542,6 +550,11 @@ export function Generate() {
 
       {mode && (
         <div className="mt-8 space-y-6 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-6">
+          {error && (
+            <div className="space-y-2 rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              <p>{error}</p>
+            </div>
+          )}
           {previewLoading ? (
             <PreviewLoading />
           ) : previewStep && preview ? (
@@ -738,8 +751,6 @@ export function Generate() {
                       </div>
                     </div>
                   )}
-
-                  {error && <p className="text-sm text-destructive">{error}</p>}
 
                   <Button type="submit" size="lg" className="w-full" disabled={!hasGenerationsLeft || !inputText.trim()}>
                     Ver enfoque propuesto
