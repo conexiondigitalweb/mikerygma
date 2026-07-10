@@ -473,6 +473,34 @@ async function runGeneration({ model, maxTokens, prompt, apiKey }) {
   return { ok: true, text }
 }
 
+// Cadencia aproximada del streaming real de Anthropic: ráfagas pequeñas y
+// frecuentes. 80 caracteres cada 20ms → ~2.6s de "escritura visible" para una
+// respuesta típica de ~10,500 caracteres (rango observado en las pruebas),
+// prácticamente nada frente al tiempo real de inferencia (varios segundos a
+// decenas de segundos). Solo se usa para el texto ya confirmado como ganador
+// — nunca para contenido bloqueado o de un intento fallido.
+const SIMULATED_STREAM_CHUNK_SIZE = 80
+const SIMULATED_STREAM_DELAY_MS = 20
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms))
+}
+
+// Reparte `text` en varias llamadas a res.write() con una pausa mínima entre
+// cada una, para que streamedChars en Generate.jsx vuelva a incrementar
+// progresivamente en vez de saltar de 0 al total en una sola lectura. Se llama
+// EXCLUSIVAMENTE con contenido ya validado como ganador (ver handler): jamás
+// se invoca antes de saber que el intento (Sonnet o el fallback de Haiku) tuvo
+// éxito, así que nunca hay riesgo de transmitir contenido parcial o bloqueado.
+async function writeSimulatedStream(res, text) {
+  for (let i = 0; i < text.length; i += SIMULATED_STREAM_CHUNK_SIZE) {
+    res.write(text.slice(i, i + SIMULATED_STREAM_CHUNK_SIZE))
+    if (i + SIMULATED_STREAM_CHUNK_SIZE < text.length) {
+      await sleep(SIMULATED_STREAM_DELAY_MS)
+    }
+  }
+}
+
 export default async function handler(req, res) {
   if (req.method !== 'POST') {
     res.status(405).json({ error: 'Método no permitido' })
@@ -598,7 +626,7 @@ export default async function handler(req, res) {
   })
 
   if (winningText !== null) {
-    res.write(winningText)
+    await writeSimulatedStream(res, winningText)
   } else {
     res.write(`${STREAM_ERROR_MARKER}${finalError?.message ?? 'La IA interrumpió la generación.'}`)
   }
