@@ -22,6 +22,17 @@ const MODEL = 'claude-sonnet-4-6'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
 const MAX_TOKENS = 3500
 
+// Fallback cuando Sonnet bloquea por content filtering (ver diagnóstico:
+// claude-sonnet-4-6 bloqueó Lucas 15:11-32 en 4/4 pruebas con el mismo prompt,
+// mientras que claude-haiku-4-5 nunca lo bloqueó en 3/3). En las pruebas, los
+// JSON completos de Haiku para este tipo de contenido rondaron 10,200-10,550
+// caracteres y se truncaron con MAX_TOKENS=3500 (la relación caracteres/token
+// varía entre generaciones, así que no basta un margen ajustado). 8000 tokens
+// da margen amplio (~2x lo observado) y se mantiene bajo el techo tradicional
+// de 8192 tokens de salida para modelos Haiku sin headers beta.
+const FALLBACK_MODEL = 'claude-haiku-4-5'
+const FALLBACK_MAX_TOKENS = 8000
+
 const MODE_FEATURE_KEYS = {
   situacion: 'mode_situacion',
   youtube: 'mode_youtube',
@@ -312,7 +323,7 @@ FORMATO DE RESPUESTA
 
 Recordatorio antes de generar: este JSON es contenido pastoral para un servicio de adoración. Al redactar "gancho", "desarrollo", "aplicacion" y "reflexion", mantén un tono expositivo y teológico — no narrativo ni gráfico — incluso cuando el pasaje o tema trate pecado, crisis humana o consecuencias morales.
 
-Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown, sin explicaciones previas ni posteriores.
+Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown, sin explicaciones previas ni posteriores. Si necesitas usar comillas dobles dentro de un valor de texto (por ejemplo para citar una frase o un apodo), escápalas SIEMPRE como \\" — nunca dejes una comilla doble sin escapar dentro de un string, porque eso rompe el JSON.
 
 El JSON debe tener exactamente esta estructura:
 
@@ -365,6 +376,101 @@ El JSON debe tener exactamente esta estructura:
   },
   "oracion_cierre": "string (máximo 80 palabras)"
 }`
+}
+
+// Shape confirmado empíricamente (ver diagnóstico con test-content-filter.js):
+// { type: "error", error: { type: "invalid_request_error", message: "Output blocked by content filtering policy" } }
+function isContentFilterBlock(errorEvent) {
+  return (
+    errorEvent?.type === 'invalid_request_error' &&
+    typeof errorEvent?.message === 'string' &&
+    errorEvent.message.toLowerCase().includes('content filtering')
+  )
+}
+
+// Ejecuta una generación completa contra la API de Anthropic y devuelve el texto
+// entero en memoria — a propósito NO escribe nada en `res`. Así se puede decidir
+// si el intento tuvo éxito (y con qué modelo) ANTES de mandar cualquier byte al
+// cliente: un fallback nunca mezcla contenido parcial del intento que falló con
+// el del reintento, porque el intento que falló nunca llegó a escribirse.
+async function runGeneration({ model, maxTokens, prompt, apiKey }) {
+  let anthropicResponse
+  try {
+    anthropicResponse = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model,
+        max_tokens: maxTokens,
+        stream: true,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    })
+  } catch (err) {
+    console.error(`Error llamando a la API de Anthropic (${model}):`, err)
+    return { ok: false, kind: 'network_error', message: 'No se pudo conectar con la IA. Verifica tu conexión e intenta de nuevo.' }
+  }
+
+  if (!anthropicResponse.ok) {
+    const errorBody = await anthropicResponse.text()
+    console.error(`Error de la API de Anthropic (${model}):`, anthropicResponse.status, errorBody)
+    return { ok: false, kind: 'http_error', message: 'La IA no pudo generar el contenido en este momento. Intenta de nuevo en unos segundos.' }
+  }
+
+  const reader = anthropicResponse.body.getReader()
+  const decoder = new TextDecoder()
+  let buffer = ''
+  let text = ''
+  let streamErrorEvent = null
+
+  try {
+    streamLoop: while (true) {
+      const { done, value } = await reader.read()
+      if (done) break
+
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() ?? ''
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const dataStr = line.slice(6).trim()
+        if (!dataStr || dataStr === '[DONE]') continue
+
+        let event
+        try {
+          event = JSON.parse(dataStr)
+        } catch {
+          continue
+        }
+
+        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
+          text += event.delta.text
+        } else if (event.type === 'error') {
+          console.error(`Error en el stream de Anthropic (${model}):`, event.error)
+          streamErrorEvent = event.error
+          break streamLoop
+        }
+      }
+    }
+  } catch (err) {
+    console.error(`Error leyendo el stream de Anthropic (${model}):`, err)
+    return { ok: false, kind: 'stream_error', message: 'Se perdió la conexión con la IA durante la generación.' }
+  }
+
+  if (streamErrorEvent) {
+    return {
+      ok: false,
+      kind: isContentFilterBlock(streamErrorEvent) ? 'content_filter' : 'stream_error',
+      message: streamErrorEvent.message || 'La IA interrumpió la generación.',
+    }
+  }
+
+  return { ok: true, text }
 }
 
 export default async function handler(req, res) {
@@ -451,83 +557,50 @@ export default async function handler(req, res) {
     previewContext: preview_context ?? null,
   })
 
-  let anthropicResponse
-  try {
-    anthropicResponse = await fetch(ANTHROPIC_URL, {
-      method: 'POST',
-      headers: {
-        'x-api-key': anthropicApiKey,
-        'anthropic-version': '2023-06-01',
-        'content-type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: MAX_TOKENS,
-        stream: true,
-        messages: [{ role: 'user', content: prompt }],
-      }),
-    })
-  } catch (err) {
-    console.error('Error llamando a la API de Anthropic:', err)
-    res.status(502).json({ error: 'No se pudo conectar con la IA. Verifica tu conexión e intenta de nuevo.' })
-    return
-  }
+  const primaryResult = await runGeneration({ model: MODEL, maxTokens: MAX_TOKENS, prompt, apiKey: anthropicApiKey })
 
-  if (!anthropicResponse.ok) {
-    const errorBody = await anthropicResponse.text()
-    console.error('Error de la API de Anthropic:', anthropicResponse.status, errorBody)
-    res.status(502).json({ error: 'La IA no pudo generar el contenido en este momento. Intenta de nuevo en unos segundos.' })
+  let winningText = null
+  let winningModel = null
+  let finalError = null
+
+  if (primaryResult.ok) {
+    winningText = primaryResult.text
+    winningModel = MODEL
+  } else if (primaryResult.kind === 'content_filter') {
+    // Único reintento permitido, y solo para este motivo específico — ver
+    // diagnóstico: Sonnet bloqueó Lucas 15:11-32 en 4/4 pruebas por content
+    // filtering; Haiku nunca lo bloqueó en 3/3 con el mismo prompt exacto.
+    console.warn(`generate.js: ${MODEL} bloqueado por content filtering, reintentando una vez con ${FALLBACK_MODEL}`)
+    const fallbackResult = await runGeneration({ model: FALLBACK_MODEL, maxTokens: FALLBACK_MAX_TOKENS, prompt, apiKey: anthropicApiKey })
+
+    if (fallbackResult.ok) {
+      winningText = fallbackResult.text
+      winningModel = FALLBACK_MODEL
+    } else {
+      // Cualquier motivo de fallo del reintento (incluyendo otro bloqueo por
+      // content filtering) se propaga tal cual, sin un segundo reintento.
+      finalError = fallbackResult
+    }
+  } else if (primaryResult.kind === 'http_error' || primaryResult.kind === 'network_error') {
+    // Fallo antes de iniciar el stream, no relacionado con content filtering —
+    // mismo comportamiento que antes: error directo, sin reintento.
+    res.status(502).json({ error: primaryResult.message })
     return
+  } else {
+    finalError = primaryResult
   }
 
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'X-Accel-Buffering': 'no',
+    ...(winningModel ? { 'X-Model-Used': winningModel } : {}),
   })
 
-  const reader = anthropicResponse.body.getReader()
-  const decoder = new TextDecoder()
-  let buffer = ''
-  let streamErrorMessage = null
-
-  try {
-    streamLoop: while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-
-      buffer += decoder.decode(value, { stream: true })
-      const lines = buffer.split('\n')
-      buffer = lines.pop() ?? ''
-
-      for (const line of lines) {
-        if (!line.startsWith('data: ')) continue
-        const dataStr = line.slice(6).trim()
-        if (!dataStr || dataStr === '[DONE]') continue
-
-        let event
-        try {
-          event = JSON.parse(dataStr)
-        } catch {
-          continue
-        }
-
-        if (event.type === 'content_block_delta' && event.delta?.type === 'text_delta') {
-          res.write(event.delta.text)
-        } else if (event.type === 'error') {
-          console.error('Error en el stream de Anthropic:', event.error)
-          streamErrorMessage = event.error?.message || 'La IA interrumpió la generación.'
-          break streamLoop
-        }
-      }
-    }
-  } catch (err) {
-    console.error('Error leyendo el stream de Anthropic:', err)
-    streamErrorMessage = streamErrorMessage || 'Se perdió la conexión con la IA durante la generación.'
-  }
-
-  if (streamErrorMessage) {
-    res.write(`${STREAM_ERROR_MARKER}${streamErrorMessage}`)
+  if (winningText !== null) {
+    res.write(winningText)
+  } else {
+    res.write(`${STREAM_ERROR_MARKER}${finalError?.message ?? 'La IA interrumpió la generación.'}`)
   }
 
   res.end()

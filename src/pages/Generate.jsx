@@ -405,6 +405,10 @@ export function Generate() {
         return
       }
 
+      // api/generate.js informa en este header qué modelo generó el contenido —
+      // normalmente Sonnet, o Haiku si se activó el fallback por content filtering.
+      const modelUsed = response.headers.get('X-Model-Used') || 'claude-sonnet-4-6'
+
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let rawText = ''
@@ -457,7 +461,7 @@ export function Generate() {
           occasion,
           translation,
           custom_instructions: customInstructions.trim(),
-          model_used: 'claude-sonnet-4-6',
+          model_used: modelUsed,
           sermon: parsed.sermon,
           devocional: parsed.devocional,
           redes: parsed.redes,
