@@ -178,6 +178,16 @@ export function Generate() {
     return () => clearInterval(interval)
   }, [generating])
 
+  // Limpia el error de generación (STREAM_ERROR_MARKER / friendlyStreamError) en
+  // cuanto el usuario cambia algo que implica un nuevo intento: volver al formulario,
+  // cambiar el pasaje/tema/situación/video, o editar el enfoque propuesto. Como
+  // `error` no está en las dependencias, esto no borra el mensaje apenas aparece —
+  // solo reacciona cuando alguno de estos inputs cambia por una acción del usuario,
+  // nunca por un timer.
+  useEffect(() => {
+    setError('')
+  }, [mode, inputText, youtubeUrl, occasion, translation, duration, customInstructions, previewStep, editedTitulo, editedTesis, editedPuntos])
+
   // Mantiene sessionStorage sincronizado con TODO el estado del preview, no solo
   // con la respuesta cruda de la API: si no se persisten también las ediciones
   // (título/tesis/puntos), un remount (p. ej. por foco recuperado en la pestaña)
