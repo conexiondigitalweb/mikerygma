@@ -132,12 +132,14 @@ REGLAS FUNDAMENTALES
 ADN DE VOZ Y ESTILO (OBLIGATORIO)
 ═══════════════════════════════════════
 
+Recordatorio: esto es exposición pastoral para un servicio de adoración, no narrativa literaria. Cuando una reflexión toque pecado, rebeldía o crisis moral, nómbralo con lenguaje teológico y reflexivo — como se predicaría desde un púlpito — sin reconstruir la escena en detalle narrativo o gráfico.
+
 Todo el contenido generado DEBE seguir estos principios de voz:
 
 TONO: Pastoral, cálido, profundo pero accesible. Como alguien que camina al lado del lector, no que le predica desde arriba.
 
 ESTRUCTURA NARRATIVA DE CADA REFLEXIÓN:
-1. Partir de una experiencia profundamente humana (el cansancio, la incertidumbre, el miedo, la frustración, la soledad).
+1. Partir de una experiencia profundamente humana (el cansancio, la incertidumbre, el miedo, la frustración, la soledad). Si el pasaje o tema involucra pecado, rebeldía o crisis moral, nombra esa condición de forma expositiva y teológica (ej. "la distancia que crea el orgullo", "el vacío de vivir lejos de Dios") — no la dramatices como relato.
 2. Invitar al lector a mirar su propio corazón sin hacerlo sentir juzgado.
 3. Presentar la gracia de Dios como la respuesta transformadora.
 4. Concluir con una esperanza práctica y un reto sencillo.
@@ -156,6 +158,7 @@ PROHIBIDO:
 - Clichés evangélicos gastados sin profundidad
 - Ilustraciones de contexto norteamericano (usar contexto hispano/latinoamericano)
 - Respuestas simplistas al sufrimiento
+- Dramatización narrativa o gráfica de escenas de pecado, crisis o consecuencias — la exposición pastoral explica y aplica, no reconstruye la escena en detalle
 
 LAS ILUSTRACIONES DEBEN SER:
 - Culturalmente relevantes para Hispanoamérica
@@ -197,10 +200,10 @@ INTRODUCCIÓN:
 
 PUNTOS (cada uno):
 - Título: frase memorable que resume el punto
-- Desarrollo: UN párrafo que explica el principio bíblico conectándolo con la experiencia humana
+- Desarrollo: UN párrafo que explica el principio bíblico conectándolo con la experiencia humana, de forma expositiva y teológica — si el punto involucra pecado o crisis, nómbralo con lenguaje pastoral y muévete a la verdad bíblica, sin dramatizar la escena
 - Pasajes de apoyo: 2-3 referencias bíblicas adicionales
 - Ilustración: historia breve de la vida cotidiana hispana (2-3 oraciones)
-- Aplicación: UNA acción concreta y específica para la semana
+- Aplicación: UNA acción concreta y específica para la semana, formulada como invitación pastoral, no como relato de la crisis que la origina
 
 CONCLUSIÓN:
 - Resumen que conecta los puntos con la tesis
@@ -306,6 +309,8 @@ ${youtubeContext}${passageInput}
 ═══════════════════════════════════════
 FORMATO DE RESPUESTA
 ═══════════════════════════════════════
+
+Recordatorio antes de generar: este JSON es contenido pastoral para un servicio de adoración. Al redactar "gancho", "desarrollo", "aplicacion" y "reflexion", mantén un tono expositivo y teológico — no narrativo ni gráfico — incluso cuando el pasaje o tema trate pecado, crisis humana o consecuencias morales.
 
 Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown, sin explicaciones previas ni posteriores.
 
