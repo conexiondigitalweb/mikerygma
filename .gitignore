@@ -14,6 +14,9 @@ dist-ssr
 
 # Scripts de diagnóstico temporales (no deben commitearse)
 test-content-filter.js
+test-lexicon.js
+test-lexicon-notes.js
+test-progress-markers.js
 
 # Editor directories and files
 .vscode/*

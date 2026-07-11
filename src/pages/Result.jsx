@@ -18,7 +18,7 @@ function withWatermark(text, hasWatermark) {
   return hasWatermark ? `${text}${WATERMARK}` : text
 }
 
-function formatSermonText(sermon) {
+function formatSermonText(sermon, notasLexicas) {
   if (!sermon) return ''
   const lines = []
   lines.push(sermon.titulo)
@@ -26,6 +26,15 @@ function formatSermonText(sermon) {
   lines.push('')
   lines.push(sermon.texto_completo_pasaje)
   lines.push('')
+  if (notasLexicas?.length > 0) {
+    lines.push('PALABRAS EN EL IDIOMA ORIGINAL')
+    notasLexicas.forEach((nota) => {
+      lines.push(`${nota.strong} (${nota.transliteracion})`)
+      lines.push(`Significado original: ${nota.significado_original}`)
+      lines.push(`Aplicación pastoral: ${nota.aplicacion_pastoral}`)
+      lines.push('')
+    })
+  }
   lines.push('INTRODUCCIÓN')
   lines.push(sermon.introduccion?.gancho ?? '')
   lines.push(sermon.introduccion?.contexto ?? '')
@@ -111,7 +120,7 @@ export function Result() {
 
   if (!result) return null
 
-  const { sermon, devocional, redes, oracion_cierre } = result
+  const { sermon, devocional, redes, oracion_cierre, notas_lexicas: notasLexicas } = result
   const hasWatermark = canUseFeature(userPlan, 'watermark')
 
   return (
@@ -149,7 +158,10 @@ export function Result() {
         {/* Tab 1 — Sermón */}
         <TabsContent value="sermon" className="space-y-6 break-words">
           <div className="flex justify-end">
-            <CopyButton getText={() => withWatermark(formatSermonText(sermon), hasWatermark)} label="Copiar sermón completo" />
+            <CopyButton
+              getText={() => withWatermark(formatSermonText(sermon, notasLexicas), hasWatermark)}
+              label="Copiar sermón completo"
+            />
           </div>
 
           <div>
@@ -159,6 +171,33 @@ export function Result() {
               {sermon?.texto_completo_pasaje}
             </blockquote>
           </div>
+
+          {notasLexicas?.length > 0 && (
+            <div className="space-y-3 rounded-lg border border-border p-4">
+              <h3 className="font-semibold text-foreground">Palabras en el idioma original</h3>
+              <p className="text-xs text-muted-foreground">
+                Ancladas a datos léxicos reales (Thayer&apos;s / Brown-Driver-Briggs) — puedes verificar cada cita por su número Strong.
+              </p>
+              <div className="space-y-3">
+                {notasLexicas.map((nota) => (
+                  <div key={nota.strong} className="rounded-md bg-secondary/40 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">{nota.strong}</Badge>
+                      <span className="text-sm font-medium italic text-foreground">{nota.transliteracion}</span>
+                    </div>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">Significado original: </span>
+                      {nota.significado_original}
+                    </p>
+                    <p className="mt-1 text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">Aplicación pastoral: </span>
+                      {nota.aplicacion_pastoral}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="space-y-3 rounded-lg border border-border p-4">
             <h3 className="font-semibold text-foreground">Introducción</h3>

@@ -12,8 +12,10 @@ import {
   PASTORAL_CLOSINGS,
 } from '../src/lib/constants.js'
 import { canUseFeature } from '../src/lib/planHelpers.js'
-import { STREAM_ERROR_MARKER } from '../src/lib/streamMarkers.js'
+import { STREAM_ERROR_MARKER, GENERATION_STAGES, buildStageMarker, buildMetaMarker } from '../src/lib/streamMarkers.js'
 import { cleanJsonResponse, repairTruncatedJson } from '../src/lib/jsonRepair.js'
+import { parseReference } from '../src/lib/scriptureParser.js'
+import { resolveBollsBook } from '../src/lib/bollsBooks.js'
 
 export const config = {
   supportsResponseStreaming: true,
@@ -41,6 +43,43 @@ const FALLBACK_MAX_TOKENS = 8000
 // el sermón completo) — no una segunda generación completa.
 const REVIEW_MODEL = 'claude-haiku-4-5'
 const REVIEW_MAX_TOKENS = 1000
+
+// Paso de notas léxicas (griego/hebreo original, post-generación): ancla 2-4
+// palabras del pasaje central a datos léxicos REALES de Bolls Bible API
+// (bolls.life, sin autenticación) en vez de dejar que el modelo invente
+// definiciones de griego/hebreo. Estrictamente opcional — ver
+// runLexiconStepWithTimeout — nunca bloquea ni retrasa significativamente la
+// generación principal.
+const LEXICON_MODEL = 'claude-haiku-4-5'
+const LEXICON_MAX_TOKENS = 1100
+const BOLLS_BASE_URL = 'https://bolls.life'
+const BOLLS_FETCH_TIMEOUT_MS = 2000
+// Medido end-to-end (ver test-lexicon-notes.js, varias corridas): fetch de
+// pasaje (~0.5-0.6s) + fetch de diccionario en paralelo (~0.5-0.6s) +
+// composición con Haiku (~5.5-6s, la parte dominante — no Bolls). Recortar el
+// pool de candidatas y las definiciones (ver LEXICON_DEFINITION_EXCERPT_CHARS)
+// bajó esto desde ~7-8s. Un presupuesto de 3-4s como se planteó originalmente
+// descartaría este paso casi siempre por timeout; 9s da margen real con la
+// variabilidad observada.
+const LEXICON_STEP_TIMEOUT_MS = 9000
+const LEXICON_CANDIDATE_POOL_SIZE = 6
+const LEXICON_MIN_CANDIDATES = 2
+
+// Códigos Strong puramente gramaticales (artículos, conjunciones, pronombres,
+// preposiciones muy comunes) que casi nunca son teológicamente notables por sí
+// mismos. Esto NO es un sistema de "relevancia teológica" — es solo un filtro
+// de palabras funcionales para no gastar llamadas al diccionario en ellas; la
+// selección real de cuáles de las candidatas restantes son significativas la
+// hace el propio paso de LLM (ver buildLexiconPrompt).
+const LEXICON_STOPWORD_STRONGS = new Set([
+  // Griego: artículo, conjunciones, pronombres, preposiciones y partículas comunes
+  'G3588', 'G2532', 'G1161', 'G1063', 'G3739', 'G846', 'G1473', 'G4771',
+  'G1519', 'G1722', 'G1537', 'G1909', 'G4314', 'G575', 'G3326', 'G1223',
+  'G3756', 'G3361', 'G3754', 'G1510', 'G1096', 'G3778', 'G1565', 'G5100', 'G5101',
+  // Hebreo: marcador de objeto directo, relativo, "ser/estar", negación, preposiciones
+  'H853', 'H3588', 'H834', 'H1961', 'H3808', 'H5921', 'H413', 'H4480',
+  'H5704', 'H3605', 'H1992', 'H1571', 'H2088', 'H2063', 'H859', 'H589',
+])
 
 const MODE_FEATURE_KEYS = {
   situacion: 'mode_situacion',
@@ -502,6 +541,271 @@ function applyTheologicalFixes(sermon, issues) {
   return corrected
 }
 
+// Helper genérico de fetch con timeout vía AbortController. Se usa para TODAS
+// las llamadas a Bolls Bible API — un servicio de hobby sin SLA (sus propios
+// docs piden explícitamente no sobrecargarlo) — para que un Bolls lento nunca
+// alargue la respuesta al pastor más de lo presupuestado.
+async function fetchJsonWithTimeout(url, ms) {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), ms)
+  try {
+    const response = await fetch(url, { signal: controller.signal })
+    if (!response.ok) return { ok: false }
+    const data = await response.json()
+    return { ok: true, data }
+  } catch {
+    return { ok: false }
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+function stripHtmlTags(html) {
+  return (html ?? '').replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim()
+}
+
+// Extrae pares (palabra, Strong) del HTML de un versículo de Bolls: la palabra
+// va seguida de <S>NNNN</S> (el número SIN prefijo G/H — Bolls exige el
+// prefijo para el endpoint de diccionario, por eso se antepone aquí mismo y
+// nunca se pierde en el resto del pipeline).
+function extractStrongWords(html, strongPrefix) {
+  const regex = /([^\s<>]+)<S>(\d+)<\/S>/g
+  const words = []
+  let match
+  while ((match = regex.exec(html ?? '')) !== null) {
+    words.push({ word: match[1], strong: `${strongPrefix}${match[2]}` })
+  }
+  return words
+}
+
+// Fetch de un capítulo Strong-tagged en Bolls (TISCH para NT griego, WLCa
+// para AT hebreo) y extracción de las palabras del rango de versículos
+// pedido. Devuelve [] ante cualquier fallo — nunca lanza.
+async function fetchBollsPassageWords({ translation, bookId, chapter, verseStart, verseEnd, strongPrefix }) {
+  const url = `${BOLLS_BASE_URL}/get-text/${translation}/${bookId}/${chapter}/`
+  const result = await fetchJsonWithTimeout(url, BOLLS_FETCH_TIMEOUT_MS)
+  if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) return []
+
+  const from = verseStart ?? 1
+  const to = verseEnd ?? verseStart ?? Infinity
+  const verses = result.data.filter((v) => v.verse >= from && v.verse <= to)
+  return verses.flatMap((v) => extractStrongWords(v.text, strongPrefix))
+}
+
+// Fetch de la definición léxica real (BDBT = Thayer's griego + BDB hebreo,
+// combinados, en inglés) para un código Strong CON prefijo (ej. "G26",
+// "H3068"). Devuelve null si Bolls no tiene la palabra (responde 200 con
+// array vacío, no un error) o ante cualquier fallo de red/timeout.
+async function fetchBollsDefinition(strongCode) {
+  const url = `${BOLLS_BASE_URL}/dictionary-definition/BDBT/${strongCode}/`
+  const result = await fetchJsonWithTimeout(url, BOLLS_FETCH_TIMEOUT_MS)
+  if (!result.ok || !Array.isArray(result.data) || result.data.length === 0) return null
+
+  const entry = result.data[0]
+  return {
+    strong: strongCode,
+    lexeme: entry.lexeme,
+    transliteration: entry.transliteration,
+    pronunciation: entry.pronunciation,
+    shortDefinition: entry.short_definition,
+    definition: stripHtmlTags(entry.definition),
+  }
+}
+
+// Algunas entradas de BDBT (sobre todo Thayer's para palabras con muchas
+// acepciones, ej. "padre") superan los 2000 caracteres. Se recorta a las
+// primeras ~450 (unas 2-3 oraciones) porque: (a) reduce tokens de entrada y
+// con ello la latencia de Haiku, y (b) con menos material en bruto para
+// sintetizar, el modelo tiende a producir notas más concisas — el
+// short_definition (gloss corto) igual se envía completo como ancla.
+const LEXICON_DEFINITION_EXCERPT_CHARS = 450
+
+function excerptDefinition(definition) {
+  if (definition.length <= LEXICON_DEFINITION_EXCERPT_CHARS) return definition
+  return `${definition.slice(0, LEXICON_DEFINITION_EXCERPT_CHARS)}…`
+}
+
+// Construye el prompt de composición de notas léxicas: recibe SOLO datos ya
+// obtenidos de Bolls (nunca conocimiento propio del modelo sobre griego o
+// hebreo) y exige separar el dato léxico de la aplicación pastoral — mismo
+// principio de exégesis/aplicación que ya rige buildPrompt() y
+// buildReviewPrompt().
+function buildLexiconPrompt({ pasajeCentral, tesis, candidates }) {
+  const candidateList = candidates
+    .map(
+      (c, i) =>
+        `${i + 1}. Strong ${c.strong} — lexema: ${c.lexeme}, transliteración: ${c.transliteration}, pronunciación: ${c.pronunciation}, gloss corto: "${c.shortDefinition}"\n   Definición (diccionario BDBT, en inglés): ${excerptDefinition(c.definition)}`
+    )
+    .join('\n\n')
+
+  return `Eres un asistente que ayuda a pastores hispanohablantes a entender el idioma original (griego o hebreo) de un pasaje bíblico. Recibes una lista de palabras del texto original con datos léxicos REALES obtenidos de un diccionario (Thayer's para griego, Brown-Driver-Briggs para hebreo, ambos en inglés). NUNCA inventes ni completes con tu propio conocimiento del griego/hebreo información que no esté en los datos que recibes a continuación — si algo no está en el dato, no lo afirmes.
+
+Pasaje: ${pasajeCentral}
+Tesis del sermón: ${tesis ?? 'no especificada'}
+
+Palabras candidatas (con datos léxicos reales del diccionario):
+
+${candidateList}
+
+Tu tarea:
+1. De esta lista de candidatas, elige las 2 a 4 que sean más teológicamente significativas para este pasaje — no tienes que usar todas.
+2. Para cada una, redacta una nota breve en español pastoral: accesible para un pastor, no un paper académico, pero precisa — sin diluir el matiz del término original al parafrasear del inglés.
+3. Cada nota debe separar CLARAMENTE dos cosas: (a) qué significa la palabra en su idioma original según el dato léxico recibido, y (b) cómo se puede aplicar pastoralmente esa palabra en la predicación de este pasaje — nunca mezcladas como si fueran lo mismo.
+4. Basa la parte (a) ÚNICAMENTE en los datos léxicos reales de arriba. La parte (b) sí es tu aporte pastoral, pero debe desprenderse naturalmente del dato léxico, no ser una idea genérica pegada al término.
+
+LÍMITES ESTRICTOS DE EXTENSIÓN (obligatorios — una nota corta y precisa es mejor que una larga y truncada):
+- "significado_original": MÁXIMO 35 palabras
+- "aplicacion_pastoral": MÁXIMO 35 palabras
+
+Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown, con esta estructura exacta:
+{
+  "notas": [
+    {
+      "strong": "<código Strong exactamente como aparece arriba, ej. G4697>",
+      "significado_original": "string — qué dice el dato léxico, en español, SIN aplicación pastoral",
+      "aplicacion_pastoral": "string — cómo se conecta esto con la predicación de este pasaje"
+    }
+  ]
+}`
+}
+
+// Orquesta el paso completo: pasaje -> testamento -> palabras Strong-tagged ->
+// filtrado de palabras gramaticales -> definiciones reales -> composición de
+// notas en español. Devuelve un `status` para monitoreo (ver
+// theological_review_log como precedente) y `notes` (null salvo 'included').
+// Nunca lanza: cualquier fallo interno se traduce a un status y notes: null.
+async function runLexiconStep({ sermon, apiKey }) {
+  const parsedRef = parseReference(sermon?.pasaje_central)
+  const resolved = resolveBollsBook(parsedRef.book)
+  if (!resolved) return { status: 'not_applicable', notes: null }
+
+  if (!parsedRef.chapter) return { status: 'not_applicable', notes: null }
+
+  const words = await fetchBollsPassageWords({
+    translation: resolved.translation,
+    bookId: resolved.bookId,
+    chapter: parsedRef.chapter,
+    verseStart: parsedRef.verse_start,
+    verseEnd: parsedRef.verse_end,
+    strongPrefix: resolved.strongPrefix,
+  })
+  if (words.length === 0) return { status: 'no_data', notes: null }
+
+  const candidateCodes = []
+  const seen = new Set()
+  for (const { strong } of words) {
+    if (seen.has(strong) || LEXICON_STOPWORD_STRONGS.has(strong)) continue
+    seen.add(strong)
+    candidateCodes.push(strong)
+    if (candidateCodes.length >= LEXICON_CANDIDATE_POOL_SIZE) break
+  }
+  if (candidateCodes.length < LEXICON_MIN_CANDIDATES) return { status: 'no_data', notes: null }
+
+  const definitions = await Promise.all(candidateCodes.map(fetchBollsDefinition))
+  const validCandidates = definitions.filter(Boolean)
+  if (validCandidates.length < LEXICON_MIN_CANDIDATES) return { status: 'no_data', notes: null }
+
+  let response
+  try {
+    response = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: LEXICON_MODEL,
+        max_tokens: LEXICON_MAX_TOKENS,
+        messages: [
+          {
+            role: 'user',
+            content: buildLexiconPrompt({
+              pasajeCentral: sermon.pasaje_central,
+              tesis: sermon.introduccion?.tesis,
+              candidates: validCandidates,
+            }),
+          },
+        ],
+      }),
+    })
+  } catch (err) {
+    console.error('Error llamando a la composición de notas léxicas:', err)
+    return { status: 'error', notes: null }
+  }
+
+  if (!response.ok) {
+    console.error('Error HTTP en la composición de notas léxicas:', response.status, await response.text().catch(() => ''))
+    return { status: 'error', notes: null }
+  }
+
+  let data
+  try {
+    data = await response.json()
+  } catch (err) {
+    console.error('Error parseando respuesta de la composición de notas léxicas:', err)
+    return { status: 'error', notes: null }
+  }
+
+  const rawText = data?.content?.[0]?.text ?? ''
+  const cleaned = cleanJsonResponse(rawText)
+
+  let parsed
+  try {
+    parsed = JSON.parse(cleaned)
+  } catch {
+    console.error('No se pudo interpretar el JSON de las notas léxicas:', rawText)
+    return { status: 'error', notes: null }
+  }
+
+  // Solo se aceptan notas cuyo Strong coincide con una candidata REAL —
+  // descarta cualquier código que el modelo pudiera haber inventado. Además,
+  // strong/lexema/transliteración se toman siempre del dato de Bolls (nunca
+  // de lo que el modelo haya podido escribir), para que la cita sea 100%
+  // verificable por el pastor.
+  const candidateByStrong = new Map(validCandidates.map((c) => [c.strong, c]))
+  const notes = (Array.isArray(parsed.notas) ? parsed.notas : [])
+    .filter((n) => n && typeof n.strong === 'string' && candidateByStrong.has(n.strong) && n.significado_original && n.aplicacion_pastoral)
+    .slice(0, 4)
+    .map((n) => {
+      const candidate = candidateByStrong.get(n.strong)
+      return {
+        strong: candidate.strong,
+        lexema: candidate.lexeme,
+        transliteracion: candidate.transliteration,
+        significado_original: n.significado_original,
+        aplicacion_pastoral: n.aplicacion_pastoral,
+      }
+    })
+
+  if (notes.length === 0) return { status: 'no_data', notes: null }
+  return { status: 'included', notes }
+}
+
+// Envuelve runLexiconStep con un presupuesto de tiempo total corto: Bolls es
+// un servicio de hobby sin SLA, así que esta función NUNCA debe alargar la
+// respuesta al pastor más de LEXICON_STEP_TIMEOUT_MS, sin importar cuántas
+// llamadas HTTP estén pendientes. `.catch()` asegura que un rechazo tardío de
+// la carrera perdida no quede como una unhandled rejection.
+async function runLexiconStepWithTimeout({ sermon, apiKey }) {
+  let timer
+  const timeoutPromise = new Promise((resolve) => {
+    timer = setTimeout(() => resolve({ status: 'timeout', notes: null }), LEXICON_STEP_TIMEOUT_MS)
+  })
+
+  try {
+    return await Promise.race([
+      runLexiconStep({ sermon, apiKey }).catch((err) => {
+        console.error('Error inesperado en el paso de notas léxicas:', err)
+        return { status: 'error', notes: null }
+      }),
+      timeoutPromise,
+    ])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
 // Shape confirmado empíricamente (ver diagnóstico con test-content-filter.js):
 // { type: "error", error: { type: "invalid_request_error", message: "Output blocked by content filtering policy" } }
 function isContentFilterBlock(errorEvent) {
@@ -742,17 +1046,34 @@ export default async function handler(req, res) {
     finalError = primaryResult
   }
 
+  // A partir de aquí YA se sabe si la generación principal (con su fallback)
+  // ganó, así que se abren los headers ahora — antes, no después de la
+  // revisión teológica y las notas léxicas — para que el cliente reciba la
+  // conexión de inmediato y pueda ver en tiempo real, vía marcadores en banda
+  // (ver src/lib/streamMarkers.js), en qué paso posterior está el servidor.
+  // X-Theological-Review y X-Lexicon-Status ya NO pueden viajar como headers
+  // HTTP porque dependen de pasos que todavía no corrieron a esta altura —
+  // van en el marcador META justo antes del contenido final (más abajo).
+  // X-Model-Used sí se conoce ya, así que se mantiene como header normal.
+  res.writeHead(200, {
+    'Content-Type': 'text/plain; charset=utf-8',
+    'Cache-Control': 'no-cache, no-transform',
+    'X-Accel-Buffering': 'no',
+    ...(winningModel ? { 'X-Model-Used': winningModel } : {}),
+  })
+
   // Paso de auto-revisión teológica: solo corre si la generación principal (o
   // su fallback) tuvo éxito. Nunca bloquea ni degrada la respuesta al usuario
   // — cualquier fallo en este paso deja `finalText` igual a `winningText`.
   let finalText = winningText
   let theologicalReviewCorrected = false
   let reviewIssuesFound = 0
+  let lexiconStatus = 'not_attempted'
+  let sermonPackage = null
 
   if (winningText !== null) {
     try {
       const cleaned = cleanJsonResponse(winningText)
-      let sermonPackage
       try {
         sermonPackage = JSON.parse(cleaned)
       } catch {
@@ -760,6 +1081,8 @@ export default async function handler(req, res) {
       }
 
       if (sermonPackage?.sermon?.puntos?.length) {
+        res.write(buildStageMarker(GENERATION_STAGES.REVIEWING))
+
         const { issues } = await runTheologicalReview({ sermon: sermonPackage.sermon, apiKey: anthropicApiKey })
         reviewIssuesFound = issues.length
 
@@ -787,17 +1110,29 @@ export default async function handler(req, res) {
     } catch (err) {
       console.error('Error registrando el log de revisión teológica:', err)
     }
+
+    // Paso de notas léxicas (Bolls Bible API): independiente de la revisión
+    // teológica, corre después para operar sobre el sermón ya corregido si
+    // hubo corrección. Estrictamente opcional — ver runLexiconStepWithTimeout.
+    if (sermonPackage?.sermon?.puntos?.length) {
+      try {
+        res.write(buildStageMarker(GENERATION_STAGES.LEXICON))
+
+        const lexiconResult = await runLexiconStepWithTimeout({ sermon: sermonPackage.sermon, apiKey: anthropicApiKey })
+        lexiconStatus = lexiconResult.status
+        if (lexiconResult.status === 'included') {
+          sermonPackage.notas_lexicas = lexiconResult.notes
+          finalText = JSON.stringify(sermonPackage)
+        }
+      } catch (err) {
+        console.error('Error en el paso de notas léxicas, se omite sin bloquear la generación:', err)
+        lexiconStatus = 'error'
+      }
+    }
   }
 
-  res.writeHead(200, {
-    'Content-Type': 'text/plain; charset=utf-8',
-    'Cache-Control': 'no-cache, no-transform',
-    'X-Accel-Buffering': 'no',
-    ...(winningModel ? { 'X-Model-Used': winningModel } : {}),
-    ...(winningText !== null ? { 'X-Theological-Review': theologicalReviewCorrected ? 'corrected' : 'clean' } : {}),
-  })
-
   if (finalText !== null) {
+    res.write(buildMetaMarker({ theological_review: theologicalReviewCorrected ? 'corrected' : 'clean', lexicon_status: lexiconStatus }))
     await writeSimulatedStream(res, finalText)
   } else {
     res.write(`${STREAM_ERROR_MARKER}${finalError?.message ?? 'La IA interrumpió la generación.'}`)

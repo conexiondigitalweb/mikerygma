@@ -19,6 +19,8 @@ export default async function handler(req, res) {
     devocional,
     redes,
     oracion_cierre,
+    notas_lexicas,
+    lexicon_notes_status,
   } = req.body ?? {}
 
   if (!user_id || !input_type || !input_text || !occasion || !translation || !sermon) {
@@ -68,6 +70,8 @@ export default async function handler(req, res) {
         model_used: model_used ?? 'claude-sonnet-4-6',
         title: sermon?.titulo ?? null,
         pasaje_central: sermon?.pasaje_central ?? null,
+        output_lexicon_notes: notas_lexicas ?? null,
+        lexicon_notes_status: lexicon_notes_status ?? 'not_attempted',
       })
       .select()
       .single()

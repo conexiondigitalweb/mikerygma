@@ -53,6 +53,8 @@ CREATE TABLE generations (
   preached_date DATE, -- fecha en que se predicó (nullable)
   notes TEXT, -- notas personales del pastor sobre esta generación (nullable)
   pasaje_central TEXT, -- extraído del output del sermón, para indexación y búsqueda de reutilización
+  output_lexicon_notes JSONB, -- notas léxicas griego/hebreo (Sesión 10), array de { strong, lexema, transliteracion, significado_original, aplicacion_pastoral } o null
+  lexicon_notes_status TEXT DEFAULT 'not_attempted', -- included, not_applicable, no_data, timeout, error, not_attempted (ver X-Lexicon-Status en api/generate.js)
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

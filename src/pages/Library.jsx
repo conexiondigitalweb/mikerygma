@@ -21,7 +21,7 @@ const FREE_LIBRARY_LIMIT = 3
 const NOTES_MAX = 500
 
 const GENERATION_COLUMNS =
-  'id, title, input_type, input_text, occasion, translation, output_sermon, output_devotional, output_social, output_prayer, status, tags, is_favorite, preached_date, notes, pasaje_central, created_at'
+  'id, title, input_type, input_text, occasion, translation, output_sermon, output_devotional, output_social, output_prayer, output_lexicon_notes, status, tags, is_favorite, preached_date, notes, pasaje_central, created_at'
 
 function truncateWords(text, count = 50) {
   if (!text) return ''
@@ -157,6 +157,7 @@ export function Library() {
           devocional: generation.output_devotional,
           redes: generation.output_social,
           oracion_cierre: generation.output_prayer,
+          notas_lexicas: generation.output_lexicon_notes,
         },
       },
     })

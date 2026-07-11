@@ -212,3 +212,16 @@ export const LOADING_MESSAGES = [
   'Creando contenido para redes...',
   'Tu kerygma está casi listo...',
 ]
+
+// Mensajes para las etapas posteriores a la generación principal (auto-revisión
+// teológica, notas léxicas). A diferencia de LOADING_MESSAGES, que rota a
+// ciegas por tiempo, estos solo se muestran cuando api/generate.js confirma en
+// tiempo real (vía marcadores en banda, ver src/lib/streamMarkers.js) que el
+// servidor entró a esa etapa — reflejan trabajo real en curso, no una espera
+// genérica.
+export const REVIEW_STAGE_MESSAGES = ['Verificando la solidez teológica de las conexiones bíblicas...']
+
+export const LEXICON_STAGE_MESSAGES = [
+  'Consultando el texto original en griego y hebreo...',
+  'Preparando las notas de estudio...',
+]

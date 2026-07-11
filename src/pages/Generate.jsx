@@ -3,11 +3,19 @@ import { Link, useNavigate } from 'react-router-dom'
 import { Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { INPUT_TYPES, TRANSLATIONS, OCCASIONS, DURATIONS, LOADING_MESSAGES } from '@/lib/constants'
+import {
+  INPUT_TYPES,
+  TRANSLATIONS,
+  OCCASIONS,
+  DURATIONS,
+  LOADING_MESSAGES,
+  REVIEW_STAGE_MESSAGES,
+  LEXICON_STAGE_MESSAGES,
+} from '@/lib/constants'
 import { canUseFeature } from '@/lib/planHelpers'
 import { parseReference } from '@/lib/scriptureParser'
 import { cleanJsonResponse, repairTruncatedJson } from '@/lib/jsonRepair'
-import { STREAM_ERROR_MARKER } from '@/lib/streamMarkers'
+import { STREAM_ERROR_MARKER, STAGE_MARKER_REGEX, META_MARKER_REGEX } from '@/lib/streamMarkers'
 import { Button } from '@/components/ui/button'
 import { Card, CardHeader, CardTitle, CardDescription } from '@/components/ui/card'
 import { Textarea } from '@/components/ui/textarea'
@@ -124,6 +132,7 @@ export function Generate() {
 
   const [generating, setGenerating] = useState(false)
   const [streamedChars, setStreamedChars] = useState(0)
+  const [generationStage, setGenerationStage] = useState(null)
   const [error, setError] = useState('')
   const [messageIndex, setMessageIndex] = useState(0)
   const [lockedModalFeature, setLockedModalFeature] = useState(null)
@@ -363,6 +372,7 @@ export function Generate() {
     setGenerating(true)
     setMessageIndex(0)
     setStreamedChars(0)
+    setGenerationStage(null)
 
     const previewContext = usePreviewContext && preview
       ? {
@@ -407,18 +417,36 @@ export function Generate() {
 
       // api/generate.js informa en este header qué modelo generó el contenido —
       // normalmente Sonnet, o Haiku si se activó el fallback por content filtering.
+      // (Este header sí se conoce apenas abre la conexión, a diferencia de
+      // theological_review/lexicon_status — ver más abajo.)
       const modelUsed = response.headers.get('X-Model-Used') || 'claude-sonnet-4-6'
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
       let rawText = ''
+      let lastStage = null
 
       while (true) {
         const { done, value } = await reader.read()
         if (isStale()) return
         if (done) break
         rawText += decoder.decode(value, { stream: true })
-        setStreamedChars((prev) => Math.max(prev, rawText.length))
+
+        // api/generate.js escribe estos marcadores en tiempo real apenas entra a
+        // cada paso posterior a la generación principal (revisión teológica,
+        // notas léxicas) — permite mostrar en qué etapa real está trabajando el
+        // servidor, no solo simular con timers locales.
+        const stageMatches = rawText.matchAll(new RegExp(STAGE_MARKER_REGEX))
+        for (const match of stageMatches) lastStage = match[1]
+        if (lastStage) setGenerationStage(lastStage)
+
+        // streamedChars debe reflejar contenido REAL recibido (el paquete final,
+        // durante el reveal simulado) — no los marcadores en sí, que llegan
+        // mucho antes y son solo señales de progreso, no contenido para mostrar.
+        const contentOnlyLength = rawText
+          .replace(new RegExp(STAGE_MARKER_REGEX), '')
+          .replace(META_MARKER_REGEX, '').length
+        setStreamedChars((prev) => Math.max(prev, contentOnlyLength))
       }
 
       const markerIndex = rawText.indexOf(STREAM_ERROR_MARKER)
@@ -428,7 +456,22 @@ export function Generate() {
         return
       }
 
-      const cleanedText = cleanJsonResponse(rawText)
+      // api/generate.js informa aquí (no como header — a esta altura la conexión
+      // ya estaba abierta desde antes de conocer estos resultados) si el paso
+      // opcional de notas léxicas (griego/hebreo original vía Bolls Bible API)
+      // llegó a incluirse. Ver buildMetaMarker en api/generate.js.
+      let lexiconStatus = 'not_attempted'
+      const metaMatch = rawText.match(META_MARKER_REGEX)
+      if (metaMatch) {
+        try {
+          lexiconStatus = JSON.parse(metaMatch[1]).lexicon_status ?? lexiconStatus
+        } catch {
+          // se ignora: lexiconStatus se queda en 'not_attempted'
+        }
+      }
+
+      const withoutMarkers = rawText.replace(new RegExp(STAGE_MARKER_REGEX), '').replace(META_MARKER_REGEX, '')
+      const cleanedText = cleanJsonResponse(withoutMarkers)
       let parsed
       try {
         parsed = JSON.parse(cleanedText)
@@ -466,6 +509,8 @@ export function Generate() {
           devocional: parsed.devocional,
           redes: parsed.redes,
           oracion_cierre: parsed.oracion_cierre,
+          notas_lexicas: parsed.notas_lexicas ?? null,
+          lexicon_notes_status: lexiconStatus,
         }),
       })
 
@@ -493,6 +538,7 @@ export function Generate() {
             devocional: parsed.devocional,
             redes: parsed.redes,
             oracion_cierre: parsed.oracion_cierre,
+            notas_lexicas: parsed.notas_lexicas ?? null,
           },
         },
       })
@@ -505,7 +551,7 @@ export function Generate() {
   }
 
   if (generating) {
-    return <GeneratingOverlay messageIndex={messageIndex} streamedChars={streamedChars} />
+    return <GeneratingOverlay messageIndex={messageIndex} streamedChars={streamedChars} stage={generationStage} />
   }
 
   const isYoutube = mode === 'youtube'
@@ -922,12 +968,24 @@ function PreviewCard({
   )
 }
 
-function GeneratingOverlay({ messageIndex, streamedChars }) {
+// Elige el conjunto de mensajes según la etapa REAL confirmada por el
+// servidor (ver GENERATION_STAGES en src/lib/streamMarkers.js). `stage` es
+// null durante la generación principal, donde no hay una señal en tiempo real
+// todavía disponible — ahí se mantiene la rotación genérica de siempre.
+const STAGE_MESSAGE_SETS = {
+  reviewing: REVIEW_STAGE_MESSAGES,
+  lexicon: LEXICON_STAGE_MESSAGES,
+}
+
+function GeneratingOverlay({ messageIndex, streamedChars, stage }) {
+  const messages = STAGE_MESSAGE_SETS[stage] ?? LOADING_MESSAGES
+  const message = streamedChars > 0 ? 'Recibiendo tu kerygma...' : messages[messageIndex % messages.length]
+
   return (
     <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-8 bg-background px-4 text-center">
       <div className="h-16 w-16 animate-spin rounded-full border-4 border-secondary border-t-primary" />
-      <p key={messageIndex} className="animate-in fade-in duration-500 text-xl font-medium text-foreground">
-        {streamedChars > 0 ? 'Recibiendo tu kerygma...' : LOADING_MESSAGES[messageIndex]}
+      <p key={message} className="animate-in fade-in duration-500 text-xl font-medium text-foreground">
+        {message}
       </p>
       {streamedChars > 0 && (
         <p className="text-sm text-muted-foreground">{streamedChars} caracteres recibidos</p>
