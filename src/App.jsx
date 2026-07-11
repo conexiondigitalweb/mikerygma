@@ -1,7 +1,7 @@
 import { Routes, Route } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
-import { Landing } from '@/pages/Landing'
+import { HomeRoute } from '@/components/HomeRoute'
 import { Login } from '@/pages/Login'
 import { Onboarding } from '@/pages/Onboarding'
 import { Dashboard } from '@/pages/Dashboard'
@@ -15,7 +15,7 @@ function App() {
   return (
     <Layout>
       <Routes>
-        <Route path="/" element={<Landing />} />
+        <Route path="/" element={<HomeRoute />} />
         <Route path="/login" element={<Login />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route
