@@ -329,7 +329,20 @@ export function Generate() {
         }),
       })
 
-      const data = await response.json()
+      // Se lee como texto primero (no response.json() directo) para poder
+      // registrar el cuerpo crudo en consola si no es JSON válido — así un
+      // fallo de parseo queda diagnosticable con las devtools del navegador
+      // sin depender de que también aparezca en los logs de Vercel.
+      const rawBody = await response.text()
+      let data
+      try {
+        data = JSON.parse(rawBody)
+      } catch {
+        console.error('No se pudo interpretar la respuesta de /api/preview. Cuerpo crudo:', rawBody)
+        setPreviewError('No se pudo interpretar la propuesta de enfoque. Intenta de nuevo.')
+        setPreviewLoading(false)
+        return
+      }
 
       if (!response.ok) {
         setPreviewError(data.error ?? 'No se pudo proponer un enfoque para tu mensaje.')
@@ -478,6 +491,12 @@ export function Generate() {
       } catch (parseErr) {
         const repaired = repairTruncatedJson(cleanedText)
         if (!repaired) {
+          // Este es el punto donde "No se pudo interpretar la respuesta de la
+          // IA" llega a pantalla. api/generate.js responde 200 apenas abre el
+          // stream (antes de saber si el JSON final será válido), así que un
+          // fallo aquí nunca aparece como error en los logs de Vercel — el
+          // texto crudo recibido queda solo en la consola del navegador.
+          console.error('No se pudo interpretar el JSON de /api/generate. Texto crudo recibido:', cleanedText)
           fail('No se pudo interpretar la respuesta de la IA. Intenta de nuevo.')
           return
         }

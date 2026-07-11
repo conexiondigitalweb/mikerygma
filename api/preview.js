@@ -64,7 +64,7 @@ function buildPreviewPrompt({
     ? `\n\nÉNFASIS ADICIONAL SOLICITADO POR EL USUARIO: ${customInstructions}`
     : ''
 
-  return `Eres un asistente pastoral. A partir del input del usuario, propón un enfoque pastoral para un mensaje. Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown.
+  return `Eres un asistente pastoral. A partir del input del usuario, propón un enfoque pastoral para un mensaje. Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown. Si necesitas usar comillas dobles dentro de un valor de texto (por ejemplo para citar una frase o un apodo), escápalas SIEMPRE como \\" — nunca dejes una comilla doble sin escapar dentro de un string, porque eso rompe el JSON.
 
 CONTEXTO DEL USUARIO:
 - Rol: ${userRole}

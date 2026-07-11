@@ -43,6 +43,9 @@ const FALLBACK_MAX_TOKENS = 8000
 // el sermón completo) — no una segunda generación completa.
 const REVIEW_MODEL = 'claude-haiku-4-5'
 const REVIEW_MAX_TOKENS = 1000
+// Igual que LEXICON_STEP_TIMEOUT_MS: este paso es una mejora de calidad
+// opcional, nunca debe alargar la respuesta de forma impredecible.
+const REVIEW_FETCH_TIMEOUT_MS = 8000
 
 // Paso de notas léxicas (griego/hebreo original, post-generación): ancla 2-4
 // palabras del pasaje central a datos léxicos REALES de Bolls Bible API
@@ -476,6 +479,14 @@ No reportes problemas dudosos o menores — solo conexiones genuinamente forzada
 // paso es una mejora de calidad, nunca debe bloquear ni romper la generación
 // principal que ya tuvo éxito.
 async function runTheologicalReview({ sermon, apiKey }) {
+  // A diferencia de las notas léxicas (que corren tras un Promise.race de 9s),
+  // esta llamada no tenía NINGÚN límite propio — solo el maxDuration de 300s
+  // de toda la función. Un Anthropic lento aquí podía dejar al cliente
+  // esperando en la etapa "reviewing" sin ningún techo predecible, contrario
+  // al principio declarado de este paso (nunca debe bloquear la generación).
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), REVIEW_FETCH_TIMEOUT_MS)
+
   let response
   try {
     response = await fetch(ANTHROPIC_URL, {
@@ -490,10 +501,13 @@ async function runTheologicalReview({ sermon, apiKey }) {
         max_tokens: REVIEW_MAX_TOKENS,
         messages: [{ role: 'user', content: buildReviewPrompt(sermon) }],
       }),
+      signal: controller.signal,
     })
   } catch (err) {
-    console.error('Error llamando a la revisión teológica:', err)
+    console.error(`Error llamando a la revisión teológica (timeout=${REVIEW_FETCH_TIMEOUT_MS}ms):`, err)
     return { issues: [] }
+  } finally {
+    clearTimeout(timer)
   }
 
   if (!response.ok) {
@@ -992,6 +1006,15 @@ export default async function handler(req, res) {
   const allowFullAdn = canUseFeature(userPlan, 'full_adn_pastoral')
   const effectiveCustomInstructions = allowCustomInstructions ? custom_instructions?.trim() || null : null
 
+  // Timestamps de diagnóstico: el único rastro que antes quedaba de una
+  // request lenta era "200 OK" en los logs de Vercel, sin forma de saber en
+  // qué etapa se fue el tiempo (generación principal, fallback, revisión
+  // teológica o notas léxicas). `elapsed()` da el tiempo transcurrido desde
+  // el inicio de esta request en cada punto clave.
+  const requestStart = Date.now()
+  const elapsed = () => `${Date.now() - requestStart}ms`
+  console.log(`[generate] inicio user=${user_id} input_type=${input_type} +${elapsed()}`)
+
   const prompt = buildPrompt({
     translation,
     denomination,
@@ -1014,6 +1037,7 @@ export default async function handler(req, res) {
   })
 
   const primaryResult = await runGeneration({ model: MODEL, maxTokens: MAX_TOKENS, prompt, apiKey: anthropicApiKey })
+  console.log(`[generate] generación principal (${MODEL}) ${primaryResult.ok ? 'ok' : `fallo:${primaryResult.kind}`} +${elapsed()}`)
 
   let winningText = null
   let winningModel = null
@@ -1028,6 +1052,7 @@ export default async function handler(req, res) {
     // filtering; Haiku nunca lo bloqueó en 3/3 con el mismo prompt exacto.
     console.warn(`generate.js: ${MODEL} bloqueado por content filtering, reintentando una vez con ${FALLBACK_MODEL}`)
     const fallbackResult = await runGeneration({ model: FALLBACK_MODEL, maxTokens: FALLBACK_MAX_TOKENS, prompt, apiKey: anthropicApiKey })
+    console.log(`[generate] fallback (${FALLBACK_MODEL}) ${fallbackResult.ok ? 'ok' : `fallo:${fallbackResult.kind}`} +${elapsed()}`)
 
     if (fallbackResult.ok) {
       winningText = fallbackResult.text
@@ -1045,6 +1070,8 @@ export default async function handler(req, res) {
   } else {
     finalError = primaryResult
   }
+
+  console.log(`[generate] fin generación principal, modelo ganador=${winningModel ?? 'ninguno'} +${elapsed()}`)
 
   // A partir de aquí YA se sabe si la generación principal (con su fallback)
   // ganó, así que se abren los headers ahora — antes, no después de la
@@ -1080,11 +1107,26 @@ export default async function handler(req, res) {
         sermonPackage = repairTruncatedJson(cleaned)
       }
 
-      if (sermonPackage?.sermon?.puntos?.length) {
+      if (!sermonPackage) {
+        // Antes esto pasaba en silencio: ni JSON.parse ni el reparador de
+        // truncados lograban interpretar winningText, se saltaban revisión
+        // teológica y notas léxicas, y finalText seguía siendo el texto roto
+        // — que se transmitía igual con 200 OK. El cliente fallaba después al
+        // intentar el mismo parseo ("No se pudo interpretar la respuesta de
+        // la IA"), pero en los logs de Vercel no quedaba ningún rastro de
+        // que el JSON de ${winningModel} nunca fue válido. Con este log al
+        // menos queda registrado el motivo real y un fragmento del texto.
+        console.error(
+          `[generate] JSON de ${winningModel} no parseable ni reparable (len=${winningText.length}) +${elapsed()}. Primeros 500 chars:`,
+          winningText.slice(0, 500)
+        )
+      } else if (sermonPackage?.sermon?.puntos?.length) {
         res.write(buildStageMarker(GENERATION_STAGES.REVIEWING))
 
+        const reviewStart = Date.now()
         const { issues } = await runTheologicalReview({ sermon: sermonPackage.sermon, apiKey: anthropicApiKey })
         reviewIssuesFound = issues.length
+        console.log(`[generate] revisión teológica: ${issues.length} issue(s) +${elapsed()} (paso tomó ${Date.now() - reviewStart}ms)`)
 
         if (issues.length > 0 && applyTheologicalFixes(sermonPackage.sermon, issues)) {
           finalText = JSON.stringify(sermonPackage)
@@ -1118,8 +1160,10 @@ export default async function handler(req, res) {
       try {
         res.write(buildStageMarker(GENERATION_STAGES.LEXICON))
 
+        const lexiconStart = Date.now()
         const lexiconResult = await runLexiconStepWithTimeout({ sermon: sermonPackage.sermon, apiKey: anthropicApiKey })
         lexiconStatus = lexiconResult.status
+        console.log(`[generate] notas léxicas: status=${lexiconStatus} +${elapsed()} (paso tomó ${Date.now() - lexiconStart}ms)`)
         if (lexiconResult.status === 'included') {
           sermonPackage.notas_lexicas = lexiconResult.notes
           finalText = JSON.stringify(sermonPackage)
@@ -1134,7 +1178,9 @@ export default async function handler(req, res) {
   if (finalText !== null) {
     res.write(buildMetaMarker({ theological_review: theologicalReviewCorrected ? 'corrected' : 'clean', lexicon_status: lexiconStatus }))
     await writeSimulatedStream(res, finalText)
+    console.log(`[generate] respuesta final enviada (${finalText.length} chars) +${elapsed()}`)
   } else {
+    console.log(`[generate] respuesta final: error (${finalError?.kind ?? 'desconocido'}) +${elapsed()}`)
     res.write(`${STREAM_ERROR_MARKER}${finalError?.message ?? 'La IA interrumpió la generación.'}`)
   }
 
