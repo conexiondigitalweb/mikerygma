@@ -80,35 +80,39 @@ function extractVerseCard(text) {
 
 function extractQuoteCard(text) {
   const clean = stripHashtagsAndEmojis(text)
+  const referenceMatch = clean.match(REFERENCE_REGEX)
+  const reference = referenceMatch ? referenceMatch[1].trim() : undefined
   const sentences = splitSentences(clean)
 
   const question = sentences.find((s) => s.trim().endsWith('?'))
-  if (question) return { mainText: cleanSentence(question) }
+  if (question) return { mainText: cleanSentence(question), reference }
 
   const candidates = sentences.filter((s) => wordCount(s) > 5)
   const pool = candidates.length > 0 ? candidates : sentences
-  if (pool.length === 0) return { mainText: cleanSentence(clean) }
+  if (pool.length === 0) return { mainText: cleanSentence(clean), reference }
 
   const shortest = pool.reduce((a, b) => (b.length < a.length ? b : a))
-  return { mainText: cleanSentence(shortest) }
+  return { mainText: cleanSentence(shortest), reference }
 }
 
 function extractReflectionCard(text) {
+  const referenceMatch = text.match(REFERENCE_REGEX)
+  const reference = referenceMatch ? referenceMatch[1].trim() : undefined
   const sentences = splitSentences(text)
-  if (sentences.length === 0) return { mainText: cleanSentence(text) }
+  if (sentences.length === 0) return { mainText: cleanSentence(text), reference }
 
   const firstSentence = cleanSentence(sentences[0])
   const firstTwo = sentences.slice(0, 2).map(cleanSentence).join(' ')
 
   if (firstTwo.length <= MAX_REFLECTION_LEN) {
-    return { mainText: firstTwo }
+    return { mainText: firstTwo, reference }
   }
 
   if (firstSentence.length <= MAX_SENTENCE_LEN) {
-    return { mainText: firstSentence }
+    return { mainText: firstSentence, reference }
   }
 
-  return { mainText: cleanSentence(pickReasonableSentence(sentences)) }
+  return { mainText: cleanSentence(pickReasonableSentence(sentences)), reference }
 }
 
 export function extractCardText(rawText = '', type = 'instagram') {
