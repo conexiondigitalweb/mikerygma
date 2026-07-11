@@ -18,6 +18,7 @@ export function Onboarding() {
   const [fullName, setFullName] = useState('')
   const [role, setRole] = useState('pastor')
   const [denomination, setDenomination] = useState('')
+  const [denominationOther, setDenominationOther] = useState('')
   const [translation, setTranslation] = useState('RVR1960')
   const [country, setCountry] = useState('')
   const [churchName, setChurchName] = useState('')
@@ -36,6 +37,7 @@ export function Onboarding() {
       email: user.email,
       role,
       denomination,
+      denomination_other: denomination === 'otro' ? denominationOther.trim() || null : null,
       preferred_translation: translation,
       country,
       church_name: churchName || null,
@@ -127,6 +129,18 @@ export function Onboarding() {
                 </SelectContent>
               </Select>
             </div>
+
+            {denomination === 'otro' && (
+              <div className="space-y-2">
+                <Label htmlFor="denomination-other">¿Cuál es tu denominación? (opcional)</Label>
+                <Input
+                  id="denomination-other"
+                  placeholder="Escribe el nombre de tu denominación o movimiento"
+                  value={denominationOther}
+                  onChange={(e) => setDenominationOther(e.target.value)}
+                />
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label>Traducción bíblica preferida</Label>

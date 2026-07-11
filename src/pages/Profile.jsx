@@ -40,6 +40,7 @@ export function Profile() {
   const [fullName, setFullName] = useState('')
   const [role, setRole] = useState('pastor')
   const [denomination, setDenomination] = useState('')
+  const [denominationOther, setDenominationOther] = useState('')
   const [translation, setTranslation] = useState('RVR1960')
   const [country, setCountry] = useState('')
   const [churchName, setChurchName] = useState('')
@@ -71,6 +72,7 @@ export function Profile() {
     setFullName(profile?.full_name ?? '')
     setRole(profile?.role ?? 'pastor')
     setDenomination(profile?.denomination ?? '')
+    setDenominationOther(profile?.denomination_other ?? '')
     setTranslation(profile?.preferred_translation ?? 'RVR1960')
     setCountry(profile?.country ?? '')
     setChurchName(profile?.church_name ?? '')
@@ -97,6 +99,7 @@ export function Profile() {
       full_name: fullName,
       role,
       denomination,
+      denomination_other: denomination === 'otro' ? denominationOther.trim() || null : null,
       preferred_translation: translation,
       country,
       church_name: churchName || null,
@@ -131,7 +134,10 @@ export function Profile() {
   const userPlan = profile?.plan ?? 'free'
   const hasFullAdn = canUseFeature(userPlan, 'full_adn_pastoral')
 
-  const denominationLabel = DENOMINATIONS.find((d) => d.value === profile?.denomination)?.label
+  const denominationLabel =
+    profile?.denomination === 'otro' && profile?.denomination_other
+      ? profile.denomination_other
+      : DENOMINATIONS.find((d) => d.value === profile?.denomination)?.label
   const roleLabel = ROLES.find((r) => r.value === profile?.role)?.label
   const translationLabel = TRANSLATIONS.find((t) => t.value === profile?.preferred_translation)?.label
   const planLabel = PLANS[profile?.plan]?.name ?? profile?.plan
@@ -187,6 +193,18 @@ export function Profile() {
                 onValueChange={setDenomination}
                 options={DENOMINATIONS}
               />
+
+              {denomination === 'otro' && (
+                <div className="space-y-2">
+                  <Label htmlFor="denomination-other">¿Cuál es tu denominación? (opcional)</Label>
+                  <Input
+                    id="denomination-other"
+                    placeholder="Escribe el nombre de tu denominación o movimiento"
+                    value={denominationOther}
+                    onChange={(e) => setDenominationOther(e.target.value)}
+                  />
+                </div>
+              )}
 
               <div className="space-y-2">
                 <Label htmlFor="country">País</Label>

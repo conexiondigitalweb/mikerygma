@@ -10,6 +10,7 @@ CREATE TABLE profiles (
   email TEXT,
   role TEXT DEFAULT 'pastor', -- pastor, lider, creador, otro
   denomination TEXT, -- bautista, pentecostal, presbiteriano, católico, interdenominacional, otro
+  denomination_other TEXT, -- solo si denomination = 'otro'; texto libre del usuario, ver buildPrompt() en api/generate.js
   preferred_translation TEXT DEFAULT 'RVR1960', -- RVR1960, NVI, DHH, LBLA, NTV, TLA
   country TEXT,
   church_name TEXT,

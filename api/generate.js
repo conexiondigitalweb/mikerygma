@@ -97,6 +97,7 @@ function labelFor(list, value, fallback) {
 export function buildPrompt({
   translation,
   denomination,
+  denominationOther,
   userRole,
   occasion,
   duration,
@@ -117,6 +118,13 @@ export function buildPrompt({
   const occasionLabel = labelFor(OCCASIONS, occasion)
   const durationInfo = DURATIONS.find((d) => d.value === duration) ?? DURATIONS[1]
   const denominationLabel = denomination ? labelFor(DENOMINATIONS, denomination, denomination) : 'interdenominacional'
+  // "Otra" no tiene guía de énfasis propia (no es viable escribir una para
+  // cada denominación posible) — cuando el usuario escribió el nombre real
+  // de la suya, se la pasamos al modelo como pista adicional dentro del
+  // bloque INTERDENOMINACIONAL / OTRA, en vez de dejarlo genérico.
+  const denominationOtherNote = denomination === 'otro' && denominationOther
+    ? ` El usuario se identifica específicamente como: ${denominationOther}. Úsalo como contexto adicional para ajustar el énfasis dentro de las doctrinas centrales del cristianismo histórico, sin inventar doctrina específica que no conozcas con certeza de esa denominación.`
+    : ''
 
   const adnFields = [
     theologicalCenter && `Centro teológico: ${labelFor(THEOLOGICAL_CENTERS, theologicalCenter, theologicalCenter)}`,
@@ -340,7 +348,7 @@ INTERDENOMINACIONAL / OTRA:
 - Mantenerse en las doctrinas centrales del cristianismo histórico
 - Evitar énfasis que puedan ser divisivos entre tradiciones
 - Enfocarse en la persona de Cristo, la gracia y la vida transformada
-- Tono: inclusivo, cristocéntrico, práctico
+- Tono: inclusivo, cristocéntrico, práctico${denominationOtherNote}
 
 ═══════════════════════════════════════
 LÍMITES ESTRICTOS DE EXTENSIÓN
@@ -952,7 +960,7 @@ export default async function handler(req, res) {
     return
   }
 
-  const { input_type, input_text, occasion, translation, denomination, duration, user_id, custom_instructions, preview_context } = req.body ?? {}
+  const { input_type, input_text, occasion, translation, duration, user_id, custom_instructions, preview_context } = req.body ?? {}
 
   if (!input_type || !input_text || !occasion || !translation || !duration || !user_id) {
     res.status(400).json({ error: 'Faltan campos requeridos: input_type, input_text, occasion, translation, duration, user_id.' })
@@ -974,7 +982,7 @@ export default async function handler(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('role, denomination, generations_used, generations_limit, plan, created_at, plan_started_at, generations_reset_at, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
+      .select('role, denomination, denomination_other, generations_used, generations_limit, plan, created_at, plan_started_at, generations_reset_at, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
       .eq('id', user_id)
       .single()
 
@@ -1038,7 +1046,8 @@ export default async function handler(req, res) {
 
   const prompt = buildPrompt({
     translation,
-    denomination,
+    denomination: profile.denomination,
+    denominationOther: profile.denomination_other,
     userRole: profile.role ?? 'pastor',
     occasion,
     duration,

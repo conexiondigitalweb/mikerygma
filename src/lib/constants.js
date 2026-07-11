@@ -27,11 +27,11 @@ export const OCCASIONS = [
 ]
 
 export const DENOMINATIONS = [
-  { value: 'pentecostal', label: 'Pentecostal / Carismática' },
+  { value: 'pentecostal', label: 'Pentecostal / Carismática (Asambleas de Dios, Cuadrangular, Iglesia de Dios, etc.)' },
   { value: 'bautista', label: 'Bautista' },
   { value: 'presbiteriano', label: 'Presbiteriana / Reformada' },
   { value: 'metodista', label: 'Metodista' },
-  { value: 'adventista', label: 'Adventista' },
+  { value: 'adventista', label: 'Adventista (Adventista del Séptimo Día)' },
   { value: 'catolica', label: 'Católica' },
   { value: 'anglicana', label: 'Anglicana / Episcopal' },
   { value: 'luterana', label: 'Luterana' },
