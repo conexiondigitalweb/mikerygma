@@ -292,7 +292,15 @@ export function Result() {
           {Object.entries(SOCIAL_META).map(([key, meta]) => {
             const post = redes?.[key]
             if (!post) return null
-            const { mainText, reference } = extractCardText(post.texto, meta.cardType)
+            // extractCardText() solo encuentra una referencia si el caption
+            // corto (máx. 50 palabras) la menciona textualmente ("Mateo
+            // 25:13") — algo que el prompt de redes nunca exige, así que es
+            // más suerte que garantía (confirmado: para "las diez vírgenes"
+            // Instagram y Stories no la mencionaban en absoluto). El pasaje
+            // real del sermón sí es siempre confiable, así que sirve de
+            // respaldo para que la tarjeta nunca se quede sin referencia.
+            const { mainText, reference: extractedReference } = extractCardText(post.texto, meta.cardType)
+            const reference = extractedReference ?? sermon?.pasaje_central
             return (
               <Card key={key}>
                 <CardContent className="space-y-4">
