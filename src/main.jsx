@@ -6,6 +6,8 @@ import { ProfileProvider } from '@/lib/ProfileContext'
 import App from './App.jsx'
 import './index.css'
 
+console.log('MiKerygma build:', document.querySelector('meta[name="app-version"]')?.content)
+
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <BrowserRouter>

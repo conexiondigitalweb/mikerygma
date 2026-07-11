@@ -1,5 +1,6 @@
 import { Navbar } from '@/components/Navbar'
 import { Footer } from '@/components/Footer'
+import { UpdatePrompt } from '@/components/UpdatePrompt'
 
 export function Layout({ children }) {
   return (
@@ -7,6 +8,7 @@ export function Layout({ children }) {
       <Navbar />
       <main className="flex-1">{children}</main>
       <Footer />
+      <UpdatePrompt />
     </div>
   )
 }
