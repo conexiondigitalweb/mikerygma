@@ -81,7 +81,12 @@ export function Dashboard() {
 
       {!loading && profile?.downgraded_at && (
         <div className="mt-6">
-          <DowngradeNotice userId={user.id} onDismiss={() => setProfile((prev) => ({ ...prev, downgraded_at: null }))} />
+          <DowngradeNotice
+            userId={user.id}
+            fullName={profile.full_name}
+            email={user.email}
+            onDismiss={() => setProfile((prev) => ({ ...prev, downgraded_at: null }))}
+          />
         </div>
       )}
 

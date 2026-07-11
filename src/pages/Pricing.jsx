@@ -8,24 +8,36 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/com
 import { Badge } from '@/components/ui/badge'
 import { PLANS } from '@/lib/constants'
 import { getUpgradePlan } from '@/lib/planHelpers'
+import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
 
 const PLAN_ORDER = ['free', 'mensajero', 'proclamador']
 
 export function Pricing() {
   const { user } = useAuth()
   const [currentPlan, setCurrentPlan] = useState(null)
+  const [fullName, setFullName] = useState(null)
 
   useEffect(() => {
     if (!user) return
     supabase
       .from('profiles')
-      .select('plan')
+      .select('plan, full_name')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
         if (data?.plan) setCurrentPlan(data.plan)
+        if (data?.full_name) setFullName(data.full_name)
       })
   }, [user])
+
+  // Sin pasarela de pago automática todavía: "Elegir [plan]" abre WhatsApp
+  // con un mensaje pre-llenado en vez de un checkout — ver src/lib/whatsapp.js.
+  const buildActivationMessage = (planName) => {
+    const id = identityLine({ fullName, email: user?.email })
+    return id
+      ? `Hola, ${id} y quiero activar el plan ${planName} en MiKerygma.`
+      : `Hola, quiero activar el plan ${planName} en MiKerygma.`
+  }
 
   const recommendedPlan = currentPlan ? getUpgradePlan(currentPlan) : 'mensajero'
 
@@ -70,11 +82,19 @@ export function Pricing() {
                   <Button className="mt-6 w-full" variant="outline" disabled>
                     Tu plan actual
                   </Button>
+                ) : key === 'free' ? (
+                  <Button className="mt-6 w-full" variant={isRecommended ? 'default' : 'outline'} asChild>
+                    <Link to="/login?mode=signup">Empieza gratis</Link>
+                  </Button>
                 ) : (
                   <Button className="mt-6 w-full" variant={isRecommended ? 'default' : 'outline'} asChild>
-                    <Link to="/login?mode=signup">
-                      {key === 'free' ? 'Empieza gratis' : `Elegir ${plan.name}`}
-                    </Link>
+                    <a
+                      href={buildWhatsAppLink(buildActivationMessage(plan.name))}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
+                      {`Elegir ${plan.name}`}
+                    </a>
                   </Button>
                 )}
               </CardContent>

@@ -1,7 +1,7 @@
 import { AlertTriangle } from 'lucide-react'
-import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
+import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
 
 // Se muestra cuando profiles.downgraded_at no es null — el sistema bajó
 // automáticamente al usuario a plan free porque su plan pago venció sin
@@ -9,11 +9,22 @@ import { supabase } from '@/lib/supabase'
 // "Descartar" limpia downgraded_at a null; no hay email todavía (Resend
 // pendiente de depuración SMTP, ver CLAUDE.md), así que este banner es hoy
 // la única notificación — el usuario la ve la próxima vez que entra.
-export function DowngradeNotice({ userId, onDismiss }) {
+//
+// "Renovar plan" abre WhatsApp en vez de /pricing: no hay pasarela de pago
+// automática todavía, así que la renovación se coordina manualmente. NOTA:
+// el downgrade sobreescribe profiles.plan a 'free' sin dejar registro de
+// cuál era el plan pago anterior (ni billingCycle.js ni ninguna otra tabla
+// lo guardan), así que el mensaje no puede nombrar el plan específico.
+export function DowngradeNotice({ userId, fullName, email, onDismiss }) {
   const handleDismiss = async () => {
     await supabase.from('profiles').update({ downgraded_at: null }).eq('id', userId)
     onDismiss?.()
   }
+
+  const id = identityLine({ fullName, email })
+  const renewalMessage = id
+    ? `Hola, ${id}. Mi plan venció y quiero renovarlo en MiKerygma.`
+    : 'Hola, mi plan venció y quiero renovarlo en MiKerygma.'
 
   return (
     <div className="flex flex-col gap-3 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
@@ -29,7 +40,9 @@ export function DowngradeNotice({ userId, onDismiss }) {
           Entendido
         </Button>
         <Button size="sm" asChild>
-          <Link to="/pricing">Renovar plan</Link>
+          <a href={buildWhatsAppLink(renewalMessage)} target="_blank" rel="noopener noreferrer">
+            Renovar plan
+          </a>
         </Button>
       </div>
     </div>
