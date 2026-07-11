@@ -93,7 +93,7 @@ function labelFor(list, value, fallback) {
   return list.find((item) => item.value === value)?.label ?? fallback ?? value
 }
 
-function buildPrompt({
+export function buildPrompt({
   translation,
   denomination,
   userRole,
@@ -378,13 +378,15 @@ Recordatorio antes de generar: este JSON es contenido pastoral para un servicio 
 
 Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown, sin explicaciones previas ni posteriores. Si necesitas usar comillas dobles dentro de un valor de texto (por ejemplo para citar una frase o un apodo), escápalas SIEMPRE como \\" — nunca dejes una comilla doble sin escapar dentro de un string, porque eso rompe el JSON.
 
+Caso específico que rompe el JSON con frecuencia — diálogo dentro de "texto_completo_pasaje": NO envuelvas el pasaje completo en tus propias comillas dobles; la app ya lo muestra visualmente como una cita (con sangría y cursiva), así que esas comillas propias son innecesarias y son justo la fuente del problema. Esto es crítico en pasajes narrativos o parábolas que incluyen discurso directo (alguien dice algo entre comillas DENTRO del pasaje mismo). Ejemplo real de esto rompiendo el JSON (evítalo exactamente así): generar texto_completo_pasaje como \\"...A medianoche se oyó un grito: "¡Ahí viene el novio! ¡Salgan a recibirlo!"... y ellas decían: "Señor, señor, ábrenos"...\\" — ahí las comillas de apertura/cierre del pasaje sí llevan \\" pero las de "¡Ahí viene el novio!..." y "Señor, señor, ábrenos" no, y esas comillas sin escapar rompen el JSON en el primer diálogo. La regla: no pongas comillas propias alrededor de todo el pasaje; y si el pasaje en sí contiene diálogo citado, escapa TODAS y cada una de esas comillas internas como \\", sin ninguna excepción.
+
 El JSON debe tener exactamente esta estructura:
 
 {
   "sermon": {
     "titulo": "string",
     "pasaje_central": "string",
-    "texto_completo_pasaje": "string (el pasaje en la traducción seleccionada)",
+    "texto_completo_pasaje": "string (el pasaje en la traducción seleccionada, SIN comillas propias envolviendo todo el texto — ver instrucción arriba)",
     "introduccion": {
       "gancho": "string",
       "contexto": "string",
