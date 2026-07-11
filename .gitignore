@@ -19,6 +19,8 @@ test-lexicon-notes.js
 test-progress-markers.js
 test-quote-escaping.js
 test-social-reference.js
+test-billing-cycle.js
+test-billing-cycle-live.js
 
 # Editor directories and files
 .vscode/*

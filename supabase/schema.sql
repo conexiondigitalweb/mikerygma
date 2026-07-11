@@ -16,6 +16,9 @@ CREATE TABLE profiles (
   plan TEXT DEFAULT 'free', -- free, mensajero ($9/mes), proclamador ($19/mes)
   generations_used INTEGER DEFAULT 0,
   generations_limit INTEGER DEFAULT 3, -- free=3, mensajero=15, proclamador=40
+  plan_started_at TIMESTAMPTZ NOT NULL DEFAULT now(), -- fecha de activación del plan ACTUAL; ancla del ciclo de facturación para planes pagos (free se ancla a created_at) — ver src/lib/billingCycle.js (Sesión 12)
+  generations_reset_at TIMESTAMPTZ NOT NULL DEFAULT now(), -- inicio del ciclo de generaciones vigente; se recalcula en cada request a api/generate.js y api/preview.js
+  downgraded_at TIMESTAMPTZ, -- se llena cuando el sistema hace downgrade automático a free por falta de renovación; el frontend muestra un aviso mientras no sea NULL
   pastoral_tone TEXT, -- pastoral_calido, profetico_desafiante, academico_reflexivo, evangelistico, conversacional
   target_audience TEXT, -- general, jovenes, mujeres, familias, adultos_mayores, profesionales, rural
   pastoral_instructions TEXT, -- instrucciones permanentes de estilo, máximo 1000 caracteres (validado en frontend)

@@ -12,6 +12,7 @@ import {
   PASTORAL_CLOSINGS,
 } from '../src/lib/constants.js'
 import { canUseFeature } from '../src/lib/planHelpers.js'
+import { resolveGenerationsCycle } from '../src/lib/billingCycle.js'
 
 const MODEL = 'claude-haiku-4-5'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
@@ -146,7 +147,7 @@ export default async function handler(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('role, denomination, plan, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
+      .select('role, denomination, plan, created_at, plan_started_at, generations_reset_at, generations_used, generations_limit, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
       .eq('id', user_id)
       .single()
 
@@ -159,6 +160,20 @@ export default async function handler(req, res) {
     console.error('Error consultando perfil:', err)
     res.status(500).json({ error: 'No se pudo verificar tu cuenta. Intenta de nuevo.' })
     return
+  }
+
+  // El preview no cuenta como generación y no valida ningún límite, pero
+  // igual resolvemos aquí el ciclo (reset/downgrade) para que la cuenta de
+  // un usuario que solo usa preview no quede desactualizada indefinidamente
+  // — ver src/lib/billingCycle.js. userPlan usa el plan ya resuelto.
+  const cycleResult = resolveGenerationsCycle(profile)
+  if (cycleResult.changed) {
+    profile = cycleResult.profile
+    try {
+      await supabaseAdmin.from('profiles').update(cycleResult.updates).eq('id', user_id)
+    } catch (err) {
+      console.error('Error persistiendo el reseteo/downgrade del ciclo de generaciones:', err)
+    }
   }
 
   const userPlan = profile.plan ?? 'free'

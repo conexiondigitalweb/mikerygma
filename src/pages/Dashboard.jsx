@@ -8,6 +8,7 @@ import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { GenerationCounter } from '@/components/GenerationCounter'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
+import { DowngradeNotice } from '@/components/DowngradeNotice'
 
 const RECENT_LIMIT = 5
 
@@ -28,7 +29,7 @@ export function Dashboard() {
 
     supabase
       .from('profiles')
-      .select('full_name, generations_used, generations_limit, plan')
+      .select('full_name, generations_used, generations_limit, plan, downgraded_at')
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
@@ -77,6 +78,12 @@ export function Dashboard() {
       <p className="mt-2 text-muted-foreground">
         Este es tu panel de MiKerygma. Desde aquí generarás tus sermones, devocionales y contenido.
       </p>
+
+      {!loading && profile?.downgraded_at && (
+        <div className="mt-6">
+          <DowngradeNotice userId={user.id} onDismiss={() => setProfile((prev) => ({ ...prev, downgraded_at: null }))} />
+        </div>
+      )}
 
       {!loading && profile && (
         <div className="mt-6 space-y-3">

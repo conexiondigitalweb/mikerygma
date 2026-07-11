@@ -16,6 +16,7 @@ import { STREAM_ERROR_MARKER, GENERATION_STAGES, buildStageMarker, buildMetaMark
 import { cleanJsonResponse, repairTruncatedJson } from '../src/lib/jsonRepair.js'
 import { parseReference } from '../src/lib/scriptureParser.js'
 import { resolveBollsBook } from '../src/lib/bollsBooks.js'
+import { resolveGenerationsCycle } from '../src/lib/billingCycle.js'
 
 export const config = {
   supportsResponseStreaming: true,
@@ -973,7 +974,7 @@ export default async function handler(req, res) {
   try {
     const { data, error } = await supabaseAdmin
       .from('profiles')
-      .select('role, denomination, generations_used, generations_limit, plan, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
+      .select('role, denomination, generations_used, generations_limit, plan, created_at, plan_started_at, generations_reset_at, pastoral_tone, target_audience, pastoral_instructions, theological_center, teaching_style, confrontation_level, application_type, pastoral_closing, phrases_to_avoid')
       .eq('id', user_id)
       .single()
 
@@ -986,6 +987,24 @@ export default async function handler(req, res) {
     console.error('Error consultando perfil:', err)
     res.status(500).json({ error: 'No se pudo verificar tu cuenta. Intenta de nuevo.' })
     return
+  }
+
+  // Reseteo/downgrade de ciclo ANTES de validar el límite: si el ciclo del
+  // usuario ya venció, resolveGenerationsCycle() decide si toca resetear
+  // generations_used (free) o degradar a free por falta de renovación (plan
+  // pago) — ver src/lib/billingCycle.js. El resto del handler usa `profile`
+  // ya actualizado, así que el límite y canUseFeature() ven el plan vigente.
+  const cycleResult = resolveGenerationsCycle(profile)
+  if (cycleResult.changed) {
+    profile = cycleResult.profile
+    try {
+      await supabaseAdmin.from('profiles').update(cycleResult.updates).eq('id', user_id)
+    } catch (err) {
+      console.error('Error persistiendo el reseteo/downgrade del ciclo de generaciones:', err)
+    }
+    if (cycleResult.event === 'downgrade') {
+      console.warn(`generate.js: downgrade automático a free para user=${user_id} (ciclo pago vencido sin renovación)`)
+    }
   }
 
   const isUnlimited = profile.generations_limit === -1
