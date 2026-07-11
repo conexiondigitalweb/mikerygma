@@ -73,12 +73,29 @@ CREATE TABLE scripture_usage (
 );
 
 -- ============================================================
+-- Tabla: theological_review_log — log de la auto-revisión teológica
+-- post-generación (Sesión 9). Sin FK a `generations`: la revisión corre en
+-- api/generate.js antes de que exista esa fila. Es un log de monitoreo en
+-- agregado, no una unión por sermón.
+-- ============================================================
+CREATE TABLE theological_review_log (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES profiles(id) ON DELETE CASCADE,
+  model_used TEXT NOT NULL, -- modelo que generó el sermón (claude-sonnet-4-6 o claude-haiku-4-5 por fallback)
+  review_model TEXT NOT NULL, -- modelo que corrió la revisión (claude-haiku-4-5)
+  was_corrected BOOLEAN NOT NULL DEFAULT false,
+  issues_found INTEGER NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
 -- RLS (Row Level Security)
 -- Patrón: BYPASSRLS y GRANT son capas separadas — siempre hacer ambas.
 -- ============================================================
 ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE generations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scripture_usage ENABLE ROW LEVEL SECURITY;
+ALTER TABLE theological_review_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users read own profile" ON profiles
   FOR SELECT USING (auth.uid() = id);
@@ -107,15 +124,20 @@ CREATE POLICY "Users insert own scripture_usage" ON scripture_usage
 CREATE POLICY "Users delete own scripture_usage" ON scripture_usage
   FOR DELETE USING (auth.uid() = user_id);
 
+CREATE POLICY "Users read own theological_review_log" ON theological_review_log
+  FOR SELECT USING (auth.uid() = user_id);
+
 -- ============================================================
 -- GRANT explícito (necesario aunque service_role tenga BYPASSRLS)
 -- ============================================================
 GRANT ALL ON profiles TO authenticated;
 GRANT ALL ON generations TO authenticated;
 GRANT ALL ON scripture_usage TO authenticated;
+GRANT ALL ON theological_review_log TO authenticated;
 GRANT ALL ON profiles TO service_role;
 GRANT ALL ON generations TO service_role;
 GRANT ALL ON scripture_usage TO service_role;
+GRANT ALL ON theological_review_log TO service_role;
 
 -- Índice para la consulta de reutilización de pasajes (libro + capítulo, por usuario)
 CREATE INDEX scripture_usage_user_book_chapter_idx ON scripture_usage (user_id, book, chapter);

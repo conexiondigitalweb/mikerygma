@@ -13,6 +13,7 @@ import {
 } from '../src/lib/constants.js'
 import { canUseFeature } from '../src/lib/planHelpers.js'
 import { STREAM_ERROR_MARKER } from '../src/lib/streamMarkers.js'
+import { cleanJsonResponse, repairTruncatedJson } from '../src/lib/jsonRepair.js'
 
 export const config = {
   supportsResponseStreaming: true,
@@ -32,6 +33,14 @@ const MAX_TOKENS = 3500
 // de 8192 tokens de salida para modelos Haiku sin headers beta.
 const FALLBACK_MODEL = 'claude-haiku-4-5'
 const FALLBACK_MAX_TOKENS = 8000
+
+// Paso de auto-revisión teológica (post-generación): audita únicamente si los
+// pasajes_apoyo y la aplicación de cada punto están genuinamente conectados
+// con ese punto, o si la conexión es forzada/superficial. Usa Haiku porque es
+// una tarea de validación acotada (recibe solo un resumen de los puntos, no
+// el sermón completo) — no una segunda generación completa.
+const REVIEW_MODEL = 'claude-haiku-4-5'
+const REVIEW_MAX_TOKENS = 1000
 
 const MODE_FEATURE_KEYS = {
   situacion: 'mode_situacion',
@@ -138,6 +147,8 @@ REGLAS FUNDAMENTALES
 3. Respeta la diversidad denominacional según las guías de énfasis denominacional (ver sección más abajo).
 4. La estructura del sermón debe ser predicable: un pastor real debe poder tomar este bosquejo y predicar desde él con mínima edición.
 5. Las aplicaciones prácticas deben ser concretas, realizables y específicas — nunca abstractas ni genéricas.
+6. Interpretación contextual de pasajes de apoyo: cada referencia bíblica que uses para sostener un punto debe compartir género literario, contexto histórico-cultural o tema teológico genuino con ese punto — no basta que comparta una palabra o un concepto superficialmente similar. Antes de proponer un pasaje de apoyo, verifica internamente (como parte de tu razonamiento) que ese pasaje realmente sostiene el punto y no solo lo menciona tangencialmente. Ejemplo de error a evitar: en un sermón sobre las bodas de Caná (Juan 2:1-11), usar Lucas 15:8-9 (la moneda perdida) como apoyo a un punto sobre "lo ordinario" es una conexión forzada, porque Lucas 15:8-9 trata sobre búsqueda diligente, no sobre cotidianidad.
+7. Separación entre exégesis y aplicación: en el desarrollo de cada punto, primero deja claro qué dice el texto en su contexto original, y solo después qué significa para la vida del oyente hoy. Nunca mezcles ambas cosas como si fueran lo mismo — la aplicación debe desprenderse naturalmente de la exégesis, no ser una idea genérica pegada al final.
 
 ═══════════════════════════════════════
 ADN DE VOZ Y ESTILO (OBLIGATORIO)
@@ -211,10 +222,10 @@ INTRODUCCIÓN:
 
 PUNTOS (cada uno):
 - Título: frase memorable que resume el punto
-- Desarrollo: UN párrafo que explica el principio bíblico conectándolo con la experiencia humana, de forma expositiva y teológica — si el punto involucra pecado o crisis, nómbralo con lenguaje pastoral y muévete a la verdad bíblica, sin dramatizar la escena
-- Pasajes de apoyo: 2-3 referencias bíblicas adicionales
+- Desarrollo: UN párrafo que primero expone qué dice el texto en su contexto original (exégesis) y luego lo conecta con la experiencia humana, de forma expositiva y teológica — si el punto involucra pecado o crisis, nómbralo con lenguaje pastoral y muévete a la verdad bíblica, sin dramatizar la escena
+- Pasajes de apoyo: 2-3 referencias bíblicas adicionales que compartan género literario, contexto histórico-cultural o tema teológico genuino con este punto — no incluyas una referencia solo porque comparte una palabra o imagen superficial con el punto
 - Ilustración: historia breve de la vida cotidiana hispana (2-3 oraciones)
-- Aplicación: UNA acción concreta y específica para la semana, formulada como invitación pastoral, no como relato de la crisis que la origina
+- Aplicación: UNA acción concreta y específica para la semana que se desprenda naturalmente del desarrollo del punto (no una idea genérica añadida al final), formulada como invitación pastoral, no como relato de la crisis que la origina
 
 CONCLUSIÓN:
 - Resumen que conecta los puntos con la tesis
@@ -376,6 +387,119 @@ El JSON debe tener exactamente esta estructura:
   },
   "oracion_cierre": "string (máximo 80 palabras)"
 }`
+}
+
+// Construye el prompt de la revisión teológica puntual: recibe solo un resumen
+// compacto de los puntos del sermón (no el sermón completo) para mantener la
+// llamada barata y rápida.
+function buildReviewPrompt(sermon) {
+  const puntosResumen = (sermon.puntos ?? []).map((p) => ({
+    numero: p.numero,
+    titulo: p.titulo,
+    desarrollo: p.desarrollo,
+    pasajes_apoyo: p.pasajes_apoyo,
+    aplicacion: p.aplicacion,
+  }))
+
+  return `Eres un revisor teológico experto en hermenéutica bíblica. Tu única tarea es auditar, para cada punto de este bosquejo de sermón, si sus "pasajes_apoyo" y su "aplicacion" están genuinamente conectados con ese punto. No revises nada más del sermón (título, ilustraciones, redacción, etc.).
+
+Para cada punto evalúa dos cosas:
+1. ¿Cada referencia en "pasajes_apoyo" sostiene genuinamente el punto — comparte género literario, contexto histórico-cultural o tema teológico real — o solo comparte una palabra o concepto superficialmente similar?
+2. ¿La "aplicacion" se desprende naturalmente del "desarrollo" del punto, o es forzada, genérica o desconectada de él?
+
+Ejemplo del tipo de error a detectar (caso ya documentado): en un sermón sobre Juan 2:1-11 (bodas de Caná), se usó Lucas 15:8-9 (la moneda perdida) como apoyo a un punto sobre "lo ordinario". Es una conexión forzada porque Lucas 15:8-9 trata sobre búsqueda diligente, no sobre cotidianidad — solo comparten una asociación superficial, no un tema teológico real.
+
+Pasaje central del sermón: ${sermon.pasaje_central ?? 'no especificado'}
+Tesis: ${sermon.introduccion?.tesis ?? 'no especificada'}
+
+Puntos a evaluar:
+${JSON.stringify(puntosResumen, null, 2)}
+
+Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown, con esta estructura exacta:
+{
+  "issues": [
+    {
+      "numero": <número del punto>,
+      "campo": "pasajes_apoyo" o "aplicacion",
+      "problema": "explicación breve de qué está mal",
+      "valor_corregido": <array de 2-3 strings si "campo" es "pasajes_apoyo", o un string si "campo" es "aplicacion">
+    }
+  ]
+}
+
+Si no encuentras ningún problema, responde exactamente: {"issues": []}
+No reportes problemas dudosos o menores — solo conexiones genuinamente forzadas o superficiales.`
+}
+
+// Llamada puntual (no streaming) a Haiku para auditar las conexiones
+// hermenéuticas del sermón ya generado. Cualquier fallo (red, HTTP, JSON
+// inválido) se degrada silenciosamente a "sin problemas detectados": este
+// paso es una mejora de calidad, nunca debe bloquear ni romper la generación
+// principal que ya tuvo éxito.
+async function runTheologicalReview({ sermon, apiKey }) {
+  let response
+  try {
+    response = await fetch(ANTHROPIC_URL, {
+      method: 'POST',
+      headers: {
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+        'content-type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: REVIEW_MODEL,
+        max_tokens: REVIEW_MAX_TOKENS,
+        messages: [{ role: 'user', content: buildReviewPrompt(sermon) }],
+      }),
+    })
+  } catch (err) {
+    console.error('Error llamando a la revisión teológica:', err)
+    return { issues: [] }
+  }
+
+  if (!response.ok) {
+    console.error('Error HTTP en la revisión teológica:', response.status, await response.text().catch(() => ''))
+    return { issues: [] }
+  }
+
+  let data
+  try {
+    data = await response.json()
+  } catch (err) {
+    console.error('Error parseando respuesta de la revisión teológica:', err)
+    return { issues: [] }
+  }
+
+  const rawText = data?.content?.[0]?.text ?? ''
+  const cleaned = cleanJsonResponse(rawText)
+
+  try {
+    const parsed = JSON.parse(cleaned)
+    return { issues: Array.isArray(parsed.issues) ? parsed.issues : [] }
+  } catch {
+    console.error('No se pudo interpretar el JSON de la revisión teológica:', rawText)
+    return { issues: [] }
+  }
+}
+
+// Aplica correcciones puntuales sobre el objeto `sermon` ya parseado — solo
+// reemplaza el campo específico (pasajes_apoyo o aplicacion) del punto
+// señalado, nunca regenera el sermón completo.
+function applyTheologicalFixes(sermon, issues) {
+  let corrected = false
+  for (const issue of issues) {
+    const punto = (sermon.puntos ?? []).find((p) => p.numero === issue.numero)
+    if (!punto) continue
+
+    if (issue.campo === 'pasajes_apoyo' && Array.isArray(issue.valor_corregido) && issue.valor_corregido.length > 0) {
+      punto.pasajes_apoyo = issue.valor_corregido
+      corrected = true
+    } else if (issue.campo === 'aplicacion' && typeof issue.valor_corregido === 'string' && issue.valor_corregido.trim()) {
+      punto.aplicacion = issue.valor_corregido.trim()
+      corrected = true
+    }
+  }
+  return corrected
 }
 
 // Shape confirmado empíricamente (ver diagnóstico con test-content-filter.js):
@@ -618,15 +742,63 @@ export default async function handler(req, res) {
     finalError = primaryResult
   }
 
+  // Paso de auto-revisión teológica: solo corre si la generación principal (o
+  // su fallback) tuvo éxito. Nunca bloquea ni degrada la respuesta al usuario
+  // — cualquier fallo en este paso deja `finalText` igual a `winningText`.
+  let finalText = winningText
+  let theologicalReviewCorrected = false
+  let reviewIssuesFound = 0
+
+  if (winningText !== null) {
+    try {
+      const cleaned = cleanJsonResponse(winningText)
+      let sermonPackage
+      try {
+        sermonPackage = JSON.parse(cleaned)
+      } catch {
+        sermonPackage = repairTruncatedJson(cleaned)
+      }
+
+      if (sermonPackage?.sermon?.puntos?.length) {
+        const { issues } = await runTheologicalReview({ sermon: sermonPackage.sermon, apiKey: anthropicApiKey })
+        reviewIssuesFound = issues.length
+
+        if (issues.length > 0 && applyTheologicalFixes(sermonPackage.sermon, issues)) {
+          finalText = JSON.stringify(sermonPackage)
+          theologicalReviewCorrected = true
+        }
+      }
+    } catch (err) {
+      console.error('Error en el paso de revisión teológica, se usa el contenido original sin cambios:', err)
+    }
+
+    // Log de monitoreo: no está ligado al id de la fila en `generations` (esa
+    // fila la crea api/save-generation.js después, a partir de lo que envíe
+    // el cliente) — sirve para observar en agregado, con el tiempo, qué tan
+    // seguido se activa esta corrección.
+    try {
+      await supabaseAdmin.from('theological_review_log').insert({
+        user_id,
+        model_used: winningModel,
+        review_model: REVIEW_MODEL,
+        was_corrected: theologicalReviewCorrected,
+        issues_found: reviewIssuesFound,
+      })
+    } catch (err) {
+      console.error('Error registrando el log de revisión teológica:', err)
+    }
+  }
+
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'X-Accel-Buffering': 'no',
     ...(winningModel ? { 'X-Model-Used': winningModel } : {}),
+    ...(winningText !== null ? { 'X-Theological-Review': theologicalReviewCorrected ? 'corrected' : 'clean' } : {}),
   })
 
-  if (winningText !== null) {
-    await writeSimulatedStream(res, winningText)
+  if (finalText !== null) {
+    await writeSimulatedStream(res, finalText)
   } else {
     res.write(`${STREAM_ERROR_MARKER}${finalError?.message ?? 'La IA interrumpió la generación.'}`)
   }
