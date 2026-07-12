@@ -23,6 +23,10 @@ test-billing-cycle.js
 test-billing-cycle-live.js
 test-content-depth.js
 test-lexicon-timing.js
+test-content-filter-drift.js
+api/_old_snapshot_generate.js
+test-paraphrase-fallback.js
+test-full-cascade.js
 
 # Editor directories and files
 .vscode/*

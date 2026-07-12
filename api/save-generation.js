@@ -21,6 +21,7 @@ export default async function handler(req, res) {
     oracion_cierre,
     notas_lexicas,
     lexicon_notes_status,
+    passage_paraphrased,
   } = req.body ?? {}
 
   if (!user_id || !input_type || !input_text || !occasion || !translation || !sermon) {
@@ -72,6 +73,7 @@ export default async function handler(req, res) {
         pasaje_central: sermon?.pasaje_central ?? null,
         output_lexicon_notes: notas_lexicas ?? null,
         lexicon_notes_status: lexicon_notes_status ?? 'not_attempted',
+        passage_paraphrased: Boolean(passage_paraphrased),
       })
       .select()
       .single()

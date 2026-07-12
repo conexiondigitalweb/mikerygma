@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
+import { AlertTriangle } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import { canUseFeature } from '@/lib/planHelpers'
@@ -18,13 +19,16 @@ function withWatermark(text, hasWatermark) {
   return hasWatermark ? `${text}${WATERMARK}` : text
 }
 
-function formatSermonText(sermon, notasLexicas) {
+function formatSermonText(sermon, notasLexicas, passageParaphrased) {
   if (!sermon) return ''
   const lines = []
   lines.push(sermon.titulo)
   lines.push(`Pasaje central: ${sermon.pasaje_central}`)
   lines.push('')
   lines.push(sermon.texto_completo_pasaje)
+  if (passageParaphrased) {
+    lines.push('(Nota: este texto es una paráfrasis generada por la IA, no una cita textual de la Escritura — verifícalo en tu Biblia antes de usarlo en público.)')
+  }
   lines.push('')
   if (notasLexicas?.length > 0) {
     lines.push('PALABRAS EN EL IDIOMA ORIGINAL')
@@ -120,7 +124,7 @@ export function Result() {
 
   if (!result) return null
 
-  const { sermon, devocional, redes, oracion_cierre, notas_lexicas: notasLexicas } = result
+  const { sermon, devocional, redes, oracion_cierre, notas_lexicas: notasLexicas, passage_paraphrased: passageParaphrased } = result
   const hasWatermark = canUseFeature(userPlan, 'watermark')
 
   return (
@@ -159,7 +163,7 @@ export function Result() {
         <TabsContent value="sermon" className="space-y-6 break-words">
           <div className="flex justify-end">
             <CopyButton
-              getText={() => withWatermark(formatSermonText(sermon, notasLexicas), hasWatermark)}
+              getText={() => withWatermark(formatSermonText(sermon, notasLexicas, passageParaphrased), hasWatermark)}
               label="Copiar sermón completo"
             />
           </div>
@@ -170,6 +174,15 @@ export function Result() {
             <blockquote className="mt-3 rounded-md border-l-4 border-primary bg-secondary/40 px-4 py-3 text-sm italic text-foreground">
               {sermon?.texto_completo_pasaje}
             </blockquote>
+            {passageParaphrased && (
+              <p className="mt-2 flex items-start gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Este texto es una <strong>paráfrasis</strong> generada por la IA, no una cita textual de la Escritura —
+                  verifícalo en tu Biblia antes de leerlo o proyectarlo en público.
+                </span>
+              </p>
+            )}
           </div>
 
           {notasLexicas?.length > 0 && (

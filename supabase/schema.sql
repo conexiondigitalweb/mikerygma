@@ -59,6 +59,7 @@ CREATE TABLE generations (
   pasaje_central TEXT, -- extraído del output del sermón, para indexación y búsqueda de reutilización
   output_lexicon_notes JSONB, -- notas léxicas griego/hebreo (Sesión 10), array de { strong, lexema, transliteracion, significado_original, aplicacion_pastoral } o null
   lexicon_notes_status TEXT DEFAULT 'not_attempted', -- included, not_applicable, no_data, timeout, error, not_attempted (ver X-Lexicon-Status en api/generate.js)
+  passage_paraphrased BOOLEAN NOT NULL DEFAULT false, -- true si texto_completo_pasaje vino de la 3ra capa de degradación (parafraseo) porque Sonnet y Haiku bloquearon la cita textual por content-filter
   created_at TIMESTAMPTZ DEFAULT now()
 );
 

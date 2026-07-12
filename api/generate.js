@@ -41,6 +41,17 @@ const MAX_TOKENS = 5000
 const FALLBACK_MODEL = 'claude-haiku-4-5'
 const FALLBACK_MAX_TOKENS = 8000
 
+// Tercera capa: cuando Sonnet Y el fallback de Haiku ya bloquearon el mismo
+// pasaje citándolo textualmente (ver diagnóstico en el handler, más abajo).
+// Probado con Lucas 15:11-32 en modo parafraseo (ver test-paraphrase-fallback.js,
+// no commiteado): Haiku 3/3 exitoso, ~40s cada uno, sin errores de JSON.
+// Sonnet evitó el bloqueo también (0/3), pero tardó 85-88s por intento y
+// truncó el JSON en 2/3 — probablemente porque tiende a ser más extenso, y
+// eso se agrava con los límites ampliados de oracion_cierre/reflexion. Haiku
+// gana en velocidad y confiabilidad, así que es el modelo de esta capa.
+const PARAPHRASE_MODEL = 'claude-haiku-4-5'
+const PARAPHRASE_MAX_TOKENS = 8000
+
 // Paso de auto-revisión teológica (post-generación): audita únicamente si los
 // pasajes_apoyo y la aplicación de cada punto están genuinamente conectados
 // con ese punto, o si la conexión es forzada/superficial. Usa Haiku porque es
@@ -132,6 +143,7 @@ export function buildPrompt({
   phrasesToAvoid,
   pastoralInstructions,
   previewContext,
+  paraphrasePassage,
 }) {
   const occasionLabel = labelFor(OCCASIONS, occasion)
   const durationInfo = DURATIONS.find((d) => d.value === duration) ?? DURATIONS[1]
@@ -143,6 +155,22 @@ export function buildPrompt({
   const denominationOtherNote = denomination === 'otro' && denominationOther
     ? ` El usuario se identifica específicamente como: ${denominationOther}. Úsalo como contexto adicional para ajustar el énfasis dentro de las doctrinas centrales del cristianismo histórico, sin inventar doctrina específica que no conozcas con certeza de esa denominación.`
     : ''
+
+  // Tercera capa de degradación (ver handler): solo se usa cuando Sonnet Y
+  // el fallback de Haiku ya bloquearon el mismo pasaje por content
+  // filtering. Diagnóstico previo (ver test-content-filter-drift.js, no
+  // commiteado) encontró que el bloqueo ocurría específicamente mientras el
+  // modelo citaba el texto bíblico textual en texto_completo_pasaje — nunca
+  // se confirmó un bloqueo por el resto del contenido (puntos, oración,
+  // aplicación). Por eso este modo SOLO cambia cómo se trata ese campo, sin
+  // tocar nada más del sermón.
+  const regla1 = paraphrasePassage
+    ? `1. Para el campo "texto_completo_pasaje" ÚNICAMENTE: NO cites el texto bíblico palabra por palabra — PARAFRASÉALO fielmente en español natural, preservando el sentido teológico exacto, el orden de los eventos y cada detalle relevante, sin inventar ni agregar nada que no esté en el pasaje real. El resto de las citas del sermón (pasajes_apoyo, pasaje_cierre, versiculo_clave del devocional) sí deben usar la traducción ${translation} normalmente — esta instrucción aplica solo a texto_completo_pasaje.`
+    : `1. SIEMPRE usa la traducción bíblica que el usuario seleccionó: ${translation}. Cita los versículos EXACTAMENTE como aparecen en esa traducción.`
+
+  const textoCompletoPasajeSchema = paraphrasePassage
+    ? '"texto_completo_pasaje": "string — PARAFRASEA fielmente el contenido y la secuencia del pasaje en español natural, SIN citarlo palabra por palabra (ver regla 1 arriba)"'
+    : '"texto_completo_pasaje": "string (el pasaje en la traducción seleccionada, SIN comillas propias envolviendo todo el texto — ver instrucción arriba)"'
 
   const adnFields = [
     theologicalCenter && `Centro teológico: ${labelFor(THEOLOGICAL_CENTERS, theologicalCenter, theologicalCenter)}`,
@@ -211,7 +239,7 @@ Eres un asistente teológico experto diseñado para apoyar a pastores y líderes
 REGLAS FUNDAMENTALES
 ═══════════════════════════════════════
 
-1. SIEMPRE usa la traducción bíblica que el usuario seleccionó: ${translation}. Cita los versículos EXACTAMENTE como aparecen en esa traducción.
+${regla1}
 2. NUNCA inventes citas bíblicas. Si no estás seguro de la cita exacta en la traducción solicitada, indica la referencia sin citar textualmente.
 3. Respeta la diversidad denominacional según las guías de énfasis denominacional (ver sección más abajo).
 4. La estructura del sermón debe ser predicable: un pastor real debe poder tomar este bosquejo y predicar desde él con mínima edición.
@@ -425,7 +453,7 @@ El JSON debe tener exactamente esta estructura:
   "sermon": {
     "titulo": "string",
     "pasaje_central": "string",
-    "texto_completo_pasaje": "string (el pasaje en la traducción seleccionada, SIN comillas propias envolviendo todo el texto — ver instrucción arriba)",
+    ${textoCompletoPasajeSchema},
     "introduccion": {
       "gancho": "string",
       "contexto": "string",
@@ -1092,7 +1120,7 @@ export default async function handler(req, res) {
   const elapsed = () => `${Date.now() - requestStart}ms`
   console.log(`[generate] inicio user=${user_id} input_type=${input_type} +${elapsed()}`)
 
-  const prompt = buildPrompt({
+  const promptArgs = {
     translation,
     denomination: profile.denomination,
     denominationOther: profile.denomination_other,
@@ -1112,7 +1140,8 @@ export default async function handler(req, res) {
     phrasesToAvoid: allowFullAdn ? profile.phrases_to_avoid : null,
     pastoralInstructions: allowFullAdn ? profile.pastoral_instructions : null,
     previewContext: preview_context ?? null,
-  })
+  }
+  const prompt = buildPrompt(promptArgs)
 
   const primaryResult = await runGeneration({ model: MODEL, maxTokens: MAX_TOKENS, prompt, apiKey: anthropicApiKey })
   console.log(`[generate] generación principal (${MODEL}) ${primaryResult.ok ? 'ok' : `fallo:${primaryResult.kind}`} +${elapsed()}`)
@@ -1120,6 +1149,7 @@ export default async function handler(req, res) {
   let winningText = null
   let winningModel = null
   let finalError = null
+  let passageParaphrased = false
 
   if (primaryResult.ok) {
     winningText = primaryResult.text
@@ -1135,9 +1165,38 @@ export default async function handler(req, res) {
     if (fallbackResult.ok) {
       winningText = fallbackResult.text
       winningModel = FALLBACK_MODEL
+    } else if (fallbackResult.kind === 'content_filter') {
+      // Tercera capa, solo cuando AMBOS modelos bloquearon el mismo pasaje.
+      // Diagnóstico (test-content-filter-drift.js, no commiteado) confirmó
+      // que Lucas 15:11-32 — una de las parábolas más predicadas — ya
+      // bloquea en ambos modelos con cierta frecuencia, algo que antes no
+      // pasaba (ver comentario arriba). El bloqueo ocurría específicamente
+      // mientras se citaba el texto bíblico textual, así que este reintento
+      // solo cambia texto_completo_pasaje a parafraseado (ver `regla1` y
+      // `paraphrasePassage` en buildPrompt) — el resto del sermón se pide
+      // igual que siempre.
+      console.warn(`generate.js: ${FALLBACK_MODEL} también bloqueado, reintentando una vez más con texto_completo_pasaje parafraseado (${PARAPHRASE_MODEL})`)
+      const paraphrasePrompt = buildPrompt({ ...promptArgs, paraphrasePassage: true })
+      const paraphraseResult = await runGeneration({
+        model: PARAPHRASE_MODEL,
+        maxTokens: PARAPHRASE_MAX_TOKENS,
+        prompt: paraphrasePrompt,
+        apiKey: anthropicApiKey,
+      })
+      console.log(`[generate] parafraseo (${PARAPHRASE_MODEL}) ${paraphraseResult.ok ? 'ok' : `fallo:${paraphraseResult.kind}`} +${elapsed()}`)
+
+      if (paraphraseResult.ok) {
+        winningText = paraphraseResult.text
+        winningModel = PARAPHRASE_MODEL
+        passageParaphrased = true
+      } else {
+        // Si también falla (bloqueo de nuevo u otro error), no hay un cuarto
+        // intento — se propaga tal cual a friendlyStreamError() en el cliente.
+        finalError = paraphraseResult
+      }
     } else {
-      // Cualquier motivo de fallo del reintento (incluyendo otro bloqueo por
-      // content filtering) se propaga tal cual, sin un segundo reintento.
+      // Cualquier otro motivo de fallo del fallback (no content-filter) se
+      // propaga tal cual, sin pasar por la tercera capa.
       finalError = fallbackResult
     }
   } else if (primaryResult.kind === 'http_error' || primaryResult.kind === 'network_error') {
@@ -1159,12 +1218,14 @@ export default async function handler(req, res) {
   // X-Theological-Review y X-Lexicon-Status ya NO pueden viajar como headers
   // HTTP porque dependen de pasos que todavía no corrieron a esta altura —
   // van en el marcador META justo antes del contenido final (más abajo).
-  // X-Model-Used sí se conoce ya, así que se mantiene como header normal.
+  // X-Model-Used y X-Passage-Paraphrased sí se conocen ya, así que se
+  // mantienen como headers normales.
   res.writeHead(200, {
     'Content-Type': 'text/plain; charset=utf-8',
     'Cache-Control': 'no-cache, no-transform',
     'X-Accel-Buffering': 'no',
     ...(winningModel ? { 'X-Model-Used': winningModel } : {}),
+    ...(passageParaphrased ? { 'X-Passage-Paraphrased': 'true' } : {}),
   })
 
   // Paso de auto-revisión teológica: solo corre si la generación principal (o

@@ -433,6 +433,10 @@ export function Generate() {
       // (Este header sí se conoce apenas abre la conexión, a diferencia de
       // theological_review/lexicon_status — ver más abajo.)
       const modelUsed = response.headers.get('X-Model-Used') || 'claude-sonnet-4-6'
+      // Presente solo cuando Sonnet y el fallback de Haiku bloquearon el
+      // mismo pasaje por content filtering y ganó la tercera capa (texto_completo_pasaje
+      // parafraseado en vez de citado textualmente) — ver Result.jsx para el aviso al pastor.
+      const passageParaphrased = response.headers.get('X-Passage-Paraphrased') === 'true'
 
       const reader = response.body.getReader()
       const decoder = new TextDecoder()
@@ -530,6 +534,7 @@ export function Generate() {
           oracion_cierre: parsed.oracion_cierre,
           notas_lexicas: parsed.notas_lexicas ?? null,
           lexicon_notes_status: lexiconStatus,
+          passage_paraphrased: passageParaphrased,
         }),
       })
 
@@ -558,6 +563,7 @@ export function Generate() {
             redes: parsed.redes,
             oracion_cierre: parsed.oracion_cierre,
             notas_lexicas: parsed.notas_lexicas ?? null,
+            passage_paraphrased: passageParaphrased,
           },
         },
       })
