@@ -21,6 +21,8 @@ test-quote-escaping.js
 test-social-reference.js
 test-billing-cycle.js
 test-billing-cycle-live.js
+test-content-depth.js
+test-lexicon-timing.js
 
 # Editor directories and files
 .vscode/*

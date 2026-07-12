@@ -24,7 +24,11 @@ export const config = {
 
 const MODEL = 'claude-sonnet-4-6'
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages'
-const MAX_TOKENS = 3500
+// 3500 alcanzaba antes de extender oracion_cierre/reflexion/oracion (ver
+// LÍMITES ESTRICTOS DE EXTENSIÓN) — confirmado por truncamiento real en
+// pruebas (test-content-depth.js) tras ese cambio. 5000 da margen real sobre
+// el contenido más largo, sin acercarse al techo de salida de Sonnet.
+const MAX_TOKENS = 5000
 
 // Fallback cuando Sonnet bloquea por content filtering (ver diagnóstico:
 // claude-sonnet-4-6 bloqueó Lucas 15:11-32 en 4/4 pruebas con el mismo prompt,
@@ -58,16 +62,30 @@ const LEXICON_MODEL = 'claude-haiku-4-5'
 const LEXICON_MAX_TOKENS = 1100
 const BOLLS_BASE_URL = 'https://bolls.life'
 const BOLLS_FETCH_TIMEOUT_MS = 2000
-// Medido end-to-end (ver test-lexicon-notes.js, varias corridas): fetch de
-// pasaje (~0.5-0.6s) + fetch de diccionario en paralelo (~0.5-0.6s) +
-// composición con Haiku (~5.5-6s, la parte dominante — no Bolls). Recortar el
-// pool de candidatas y las definiciones (ver LEXICON_DEFINITION_EXCERPT_CHARS)
-// bajó esto desde ~7-8s. Un presupuesto de 3-4s como se planteó originalmente
-// descartaría este paso casi siempre por timeout; 9s da margen real con la
-// variabilidad observada.
-const LEXICON_STEP_TIMEOUT_MS = 9000
+// Medido end-to-end con timing instrumentado por fase (ver runLexiconStep):
+// fetch de pasaje Bolls (~0.6s) + fetch de diccionario en paralelo (~0.6s) —
+// ambos CONSTANTES sin importar la extensión del pasaje, porque Bolls trae
+// el capítulo completo de una vez y el pool de candidatas está fijo en
+// LEXICON_CANDIDATE_POOL_SIZE independientemente de cuántos versículos se
+// pidan. La parte dominante, con mucho, es la composición con Haiku — y esa
+// sí crece con pasajes largos, porque desde que significado_original incluye
+// la frase de correspondencia con el texto en español (ver buildLexiconPrompt),
+// las notas requieren más tokens de salida. Medido con Salmo 103 (22
+// versículos, comparable a Lucas 15:11-32): Bolls 621ms + 561ms, Haiku
+// 7371ms, total 8555ms — peligrosamente cerca del techo anterior de 9000ms,
+// lo que explica el timeout real reportado con pasajes largos. 12000ms da
+// margen real sobre ese peor caso medido, sin acercarse al techo de 300s de
+// toda la función.
+const LEXICON_STEP_TIMEOUT_MS = 12000
 const LEXICON_CANDIDATE_POOL_SIZE = 6
 const LEXICON_MIN_CANDIDATES = 2
+// Tope defensivo sobre texto_completo_pasaje al armar el prompt de
+// composición: pasajes larguísimos (capítulos de 40+ versículos) podrían
+// inflar el prompt de entrada más allá de lo medido arriba. No es la causa
+// principal del timeout diagnosticado (el costo dominante es la salida de
+// Haiku, no la entrada), pero acota el peor caso patológico sin necesitar
+// mapear cada candidata a su versículo exacto — solo recorta, no ventanea.
+const LEXICON_PASSAGE_TEXT_MAX_CHARS = 3000
 
 // Códigos Strong puramente gramaticales (artículos, conjunciones, pronombres,
 // preposiciones muy comunes) que casi nunca son teológicamente notables por sí
@@ -250,15 +268,22 @@ Versículo del Día:
 "Pues ya saben que la prueba de su fe produce perseverancia." — Santiago 1:3 (NVI)
 
 Reflexión:
-Nadie busca las pruebas. Si pudiéramos elegir, probablemente escogeríamos los caminos más sencillos, las respuestas más rápidas y las temporadas donde todo parece avanzar sin obstáculos. Sin embargo, gran parte de las lecciones más profundas de la vida nacen precisamente en aquellos momentos que no habríamos escogido. Las dificultades tienen la capacidad de confrontarnos, de mostrarnos nuestras fragilidades y de revelar aquello en lo que realmente estamos apoyando nuestra confianza. En medio de esos procesos, la gracia nos recuerda que Dios no desperdicia ninguna circunstancia. Aunque no siempre comprendamos lo que estamos viviendo, Él puede usar incluso las etapas más difíciles para formar algo valioso dentro de nosotros. La perseverancia no se desarrolla cuando todo es fácil; crece cuando decidimos seguir caminando aun en medio de la incertidumbre. Y es allí donde la gracia comienza a transformar nuestra manera de enfrentar las pruebas, ayudándonos a ver que Dios no solo está interesado en sacarnos del proceso, sino también en acompañarnos y formarnos mientras lo atravesamos.
+Nadie busca las pruebas. Si pudiéramos elegir, probablemente escogeríamos los caminos más sencillos, las respuestas más rápidas y las temporadas donde todo parece avanzar sin obstáculos. Sin embargo, gran parte de las lecciones más profundas de la vida nacen precisamente en aquellos momentos que no habríamos escogido. Las dificultades tienen la capacidad de confrontarnos, de mostrarnos nuestras fragilidades y de revelar aquello en lo que realmente estamos apoyando nuestra confianza.
+
+Tal vez tú también has llegado a preguntarte, en medio de una espera que no entiendes, si Dios sigue prestando atención a lo que vives. Es una pregunta honesta, no una falta de fe — y vale la pena quedarse un momento en ella en vez de apurarse a responderla. Porque cuando nos detenemos a mirar con calma, empezamos a notar que la ansiedad por resolver rápido casi siempre viene de querer controlar el proceso más que de confiar en Quien lo sostiene.
+
+En medio de esos procesos, la gracia nos recuerda que Dios no desperdicia ninguna circunstancia. Aunque no siempre comprendamos lo que estamos viviendo, Él puede usar incluso las etapas más difíciles para formar algo valioso dentro de nosotros. La perseverancia no se desarrolla cuando todo es fácil; crece cuando decidimos seguir caminando aun en medio de la incertidumbre. Y es allí donde la gracia comienza a transformar nuestra manera de enfrentar las pruebas, ayudándonos a ver que Dios no solo está interesado en sacarnos del proceso, sino también en acompañarnos y formarnos mientras lo atravesamos.
 
 Reto práctico:
 Identifica una dificultad que estés viviendo y pídele a Dios que te ayude a verla desde una perspectiva diferente.
 
+Oración:
+Señor, hoy vengo a ti tal como estoy, sin fingir que entiendo todo lo que estoy atravesando. Gracias porque no me pides tener las respuestas antes de acercarme a ti. Ayúdame a soltar la urgencia de resolverlo todo ahora mismo, y a confiar en que tú no me has soltado la mano en este proceso. Enséñame a ver mis dificultades no como castigo, sino como el lugar donde tu gracia está formando algo nuevo en mí. Dame paciencia para caminar un día a la vez, y recuérdame, cuando lo olvide, que tú sigues aquí, sosteniéndome incluso en la incertidumbre. En el nombre de Jesús, amén.
+
 Frase clave: La gracia transforma nuestra manera de enfrentar las pruebas.
 ---
 
-Observa: la reflexión NO empieza con el versículo ni con doctrina — empieza con una experiencia humana ("Nadie busca las pruebas"). Luego conecta con la gracia ("la gracia nos recuerda que..."). Y el reto es una sola acción concreta para ese día.
+Observa: la reflexión NO empieza con el versículo ni con doctrina — empieza con una experiencia humana ("Nadie busca las pruebas"), se detiene a mirar hacia adentro en primera/segunda persona cercana ("Tal vez tú también...") en vez de señalar al lector, y solo después conecta con la gracia ("la gracia nos recuerda que..."). El reto es una sola acción concreta para ese día. La oración retoma esa misma condición humana en primera persona ("Ayúdame a soltar..."), pide algo concreto y cierra con confianza — no es un cierre de una frase.
 
 ═══════════════════════════════════════
 EJEMPLO DE SERMÓN DE REFERENCIA
@@ -357,10 +382,15 @@ LÍMITES ESTRICTOS DE EXTENSIÓN
 - Desarrollo de cada punto del sermón: MÁXIMO 80 palabras
 - Ilustraciones: MÁXIMO 40 palabras
 - Aplicación de cada punto: MÁXIMO 50 palabras
-- Reflexión del devocional: MÁXIMO 150 palabras
 - Cada post de redes: MÁXIMO 50 palabras
-- Oración de cierre: MÁXIMO 80 palabras
 Estos límites son obligatorios. Un output más corto y preciso es mejor que uno largo y truncado.
+
+Excepción — estos tres campos deben ser más largos y elaborados, dentro de su propio rango (ni cortos ni desbordados):
+- Reflexión del devocional: ENTRE 200 y 280 palabras
+- Oración de cierre del sermón (campo "oracion_cierre" dentro de "sermon" Y el campo "oracion_cierre" en la raíz del JSON — son la misma oración, escríbela una vez y repítela igual en ambos lugares): ENTRE 120 y 180 palabras
+- Oración del devocional (campo "oracion" dentro de "devocional"): ENTRE 80 y 130 palabras
+
+Guía de profundidad para esos tres campos: no son un cierre formal de una o dos frases genéricas — deben sentirse como una oración o reflexión real que un pastor escribiría para acompañar a alguien. Nombra la condición humana de la que parte el mensaje (retomando la tensión/tesis ya desarrollada), pide algo concreto, y cierra con una nota genuina de esperanza o confianza en Dios. Esto NO cambia el enfoque denominacional ya definido arriba — la oración sigue sonando pentecostal, reformada, católica, etc. según corresponda; solo pide más desarrollo dentro de ese mismo enfoque. Para la reflexión del devocional específicamente: tono AUTORREFLEXIVO, no confrontativo — invita al lector a mirar su propio corazón en primera o segunda persona cercana ("cuando me detengo a pensar...", "tal vez tú también..."), nunca lo señales ni le exijas ("debes", "tienes que").
 
 ═══════════════════════════════════════
 CONTEXTO DEL USUARIO
@@ -416,13 +446,13 @@ El JSON debe tener exactamente esta estructura:
       "llamado_accion": "string",
       "pasaje_cierre": "string"
     },
-    "oracion_cierre": "string (máximo 80 palabras)"
+    "oracion_cierre": "string (entre 120 y 180 palabras, oración pastoral elaborada — ver guía de profundidad)"
   },
   "devocional": {
     "versiculo_clave": "string",
-    "reflexion": "string (máximo 150 palabras, siguiendo el ADN de voz)",
+    "reflexion": "string (entre 200 y 280 palabras, tono autorreflexivo no confrontativo — ver guía de profundidad)",
     "aplicacion": "string",
-    "oracion": "string"
+    "oracion": "string (entre 80 y 130 palabras — ver guía de profundidad)"
   },
   "redes": {
     "post_instagram": {
@@ -438,7 +468,7 @@ El JSON debe tener exactamente esta estructura:
       "hashtags": ["#hash1", "#hash2"]
     }
   },
-  "oracion_cierre": "string (máximo 80 palabras)"
+  "oracion_cierre": "string (entre 120 y 180 palabras — misma oración que sermon.oracion_cierre, ver guía de profundidad)"
 }`
 }
 
@@ -655,7 +685,7 @@ function excerptDefinition(definition) {
 // hebreo) y exige separar el dato léxico de la aplicación pastoral — mismo
 // principio de exégesis/aplicación que ya rige buildPrompt() y
 // buildReviewPrompt().
-function buildLexiconPrompt({ pasajeCentral, tesis, candidates }) {
+function buildLexiconPrompt({ pasajeCentral, tesis, textoCompletoPasaje, candidates }) {
   const candidateList = candidates
     .map(
       (c, i) =>
@@ -663,10 +693,18 @@ function buildLexiconPrompt({ pasajeCentral, tesis, candidates }) {
     )
     .join('\n\n')
 
+  const passageText =
+    textoCompletoPasaje && textoCompletoPasaje.length > LEXICON_PASSAGE_TEXT_MAX_CHARS
+      ? `${textoCompletoPasaje.slice(0, LEXICON_PASSAGE_TEXT_MAX_CHARS)}…`
+      : textoCompletoPasaje
+
   return `Eres un asistente que ayuda a pastores hispanohablantes a entender el idioma original (griego o hebreo) de un pasaje bíblico. Recibes una lista de palabras del texto original con datos léxicos REALES obtenidos de un diccionario (Thayer's para griego, Brown-Driver-Briggs para hebreo, ambos en inglés). NUNCA inventes ni completes con tu propio conocimiento del griego/hebreo información que no esté en los datos que recibes a continuación — si algo no está en el dato, no lo afirmes.
 
 Pasaje: ${pasajeCentral}
 Tesis del sermón: ${tesis ?? 'no especificada'}
+
+Texto completo del pasaje en español (la traducción exacta ya generada para este sermón — úsala para identificar qué palabra o frase corresponde a cada término original, NO uses una traducción genérica de memoria):
+${passageText ?? '(no disponible)'}
 
 Palabras candidatas (con datos léxicos reales del diccionario):
 
@@ -674,12 +712,15 @@ ${candidateList}
 
 Tu tarea:
 1. De esta lista de candidatas, elige las 2 a 4 que sean más teológicamente significativas para este pasaje — no tienes que usar todas.
-2. Para cada una, redacta una nota breve en español pastoral: accesible para un pastor, no un paper académico, pero precisa — sin diluir el matiz del término original al parafrasear del inglés.
-3. Cada nota debe separar CLARAMENTE dos cosas: (a) qué significa la palabra en su idioma original según el dato léxico recibido, y (b) cómo se puede aplicar pastoralmente esa palabra en la predicación de este pasaje — nunca mezcladas como si fueran lo mismo.
-4. Basa la parte (a) ÚNICAMENTE en los datos léxicos reales de arriba. La parte (b) sí es tu aporte pastoral, pero debe desprenderse naturalmente del dato léxico, no ser una idea genérica pegada al término.
+2. Para cada una, busca en el texto en español de arriba qué palabra o frase específica corresponde a ese término original.
+3. Si la correspondencia es razonablemente clara, empieza "significado_original" EXACTAMENTE con este patrón: "[lexema] se transcribe como [transliteración] y se traduce en el pasaje como '[palabra o frase exacta del texto en español]'." — y continúa después explicando qué significa el término según el dato léxico.
+4. Si la traducción de este pasaje es muy libre, es una perífrasis, o no puedes identificar con confianza razonable a qué palabra o frase corresponde el término, OMITE esa candidata por completo — no inventes ni fuerces una correspondencia. Usa otra candidata de la lista en su lugar si hace falta.
+5. Redacta cada nota en español pastoral: accesible para un pastor, no un paper académico, pero precisa — sin diluir el matiz del término original al parafrasear del inglés.
+6. Cada nota debe separar CLARAMENTE dos cosas: (a) la correspondencia con el texto en español + qué significa la palabra en su idioma original según el dato léxico recibido, y (b) cómo se puede aplicar pastoralmente esa palabra en la predicación de este pasaje — nunca mezcladas como si fueran lo mismo.
+7. Basa la parte (a) ÚNICAMENTE en los datos léxicos reales de arriba y en el texto en español provisto. La parte (b) sí es tu aporte pastoral, pero debe desprenderse naturalmente del dato léxico, no ser una idea genérica pegada al término.
 
 LÍMITES ESTRICTOS DE EXTENSIÓN (obligatorios — una nota corta y precisa es mejor que una larga y truncada):
-- "significado_original": MÁXIMO 35 palabras
+- "significado_original": MÁXIMO 45 palabras (incluye la frase de correspondencia con el texto en español)
 - "aplicacion_pastoral": MÁXIMO 35 palabras
 
 Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de markdown, con esta estructura exacta:
@@ -687,7 +728,7 @@ Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de 
   "notas": [
     {
       "strong": "<código Strong exactamente como aparece arriba, ej. G4697>",
-      "significado_original": "string — qué dice el dato léxico, en español, SIN aplicación pastoral",
+      "significado_original": "string — empieza con la correspondencia al texto en español (ver patrón arriba), luego qué dice el dato léxico, en español, SIN aplicación pastoral",
       "aplicacion_pastoral": "string — cómo se conecta esto con la predicación de este pasaje"
     }
   ]
@@ -700,12 +741,14 @@ Responde ÚNICAMENTE con un JSON válido, sin texto adicional, sin backticks de 
 // theological_review_log como precedente) y `notes` (null salvo 'included').
 // Nunca lanza: cualquier fallo interno se traduce a un status y notes: null.
 async function runLexiconStep({ sermon, apiKey }) {
+  const stepStart = Date.now()
   const parsedRef = parseReference(sermon?.pasaje_central)
   const resolved = resolveBollsBook(parsedRef.book)
   if (!resolved) return { status: 'not_applicable', notes: null }
 
   if (!parsedRef.chapter) return { status: 'not_applicable', notes: null }
 
+  const passageFetchStart = Date.now()
   const words = await fetchBollsPassageWords({
     translation: resolved.translation,
     bookId: resolved.bookId,
@@ -714,6 +757,7 @@ async function runLexiconStep({ sermon, apiKey }) {
     verseEnd: parsedRef.verse_end,
     strongPrefix: resolved.strongPrefix,
   })
+  console.log(`[lexicon] fetch pasaje Bolls: ${Date.now() - passageFetchStart}ms, ${words.length} palabras Strong-tagged`)
   if (words.length === 0) return { status: 'no_data', notes: null }
 
   const candidateCodes = []
@@ -726,10 +770,21 @@ async function runLexiconStep({ sermon, apiKey }) {
   }
   if (candidateCodes.length < LEXICON_MIN_CANDIDATES) return { status: 'no_data', notes: null }
 
+  const definitionsFetchStart = Date.now()
   const definitions = await Promise.all(candidateCodes.map(fetchBollsDefinition))
+  console.log(`[lexicon] fetch definiciones Bolls (${candidateCodes.length} candidatas en paralelo): ${Date.now() - definitionsFetchStart}ms`)
   const validCandidates = definitions.filter(Boolean)
   if (validCandidates.length < LEXICON_MIN_CANDIDATES) return { status: 'no_data', notes: null }
 
+  const lexiconPrompt = buildLexiconPrompt({
+    pasajeCentral: sermon.pasaje_central,
+    tesis: sermon.introduccion?.tesis,
+    textoCompletoPasaje: sermon.texto_completo_pasaje,
+    candidates: validCandidates,
+  })
+  console.log(`[lexicon] prompt de composición: ${lexiconPrompt.length} chars (texto_completo_pasaje: ${sermon.texto_completo_pasaje?.length ?? 0} chars, ${validCandidates.length} candidatas)`)
+
+  const haikuStart = Date.now()
   let response
   try {
     response = await fetch(ANTHROPIC_URL, {
@@ -742,22 +797,14 @@ async function runLexiconStep({ sermon, apiKey }) {
       body: JSON.stringify({
         model: LEXICON_MODEL,
         max_tokens: LEXICON_MAX_TOKENS,
-        messages: [
-          {
-            role: 'user',
-            content: buildLexiconPrompt({
-              pasajeCentral: sermon.pasaje_central,
-              tesis: sermon.introduccion?.tesis,
-              candidates: validCandidates,
-            }),
-          },
-        ],
+        messages: [{ role: 'user', content: lexiconPrompt }],
       }),
     })
   } catch (err) {
     console.error('Error llamando a la composición de notas léxicas:', err)
     return { status: 'error', notes: null }
   }
+  console.log(`[lexicon] composición Haiku: ${Date.now() - haikuStart}ms`)
 
   if (!response.ok) {
     console.error('Error HTTP en la composición de notas léxicas:', response.status, await response.text().catch(() => ''))
@@ -804,6 +851,7 @@ async function runLexiconStep({ sermon, apiKey }) {
     })
 
   if (notes.length === 0) return { status: 'no_data', notes: null }
+  console.log(`[lexicon] total runLexiconStep: ${Date.now() - stepStart}ms`)
   return { status: 'included', notes }
 }
 
@@ -812,7 +860,7 @@ async function runLexiconStep({ sermon, apiKey }) {
 // respuesta al pastor más de LEXICON_STEP_TIMEOUT_MS, sin importar cuántas
 // llamadas HTTP estén pendientes. `.catch()` asegura que un rechazo tardío de
 // la carrera perdida no quede como una unhandled rejection.
-async function runLexiconStepWithTimeout({ sermon, apiKey }) {
+export async function runLexiconStepWithTimeout({ sermon, apiKey }) {
   let timer
   const timeoutPromise = new Promise((resolve) => {
     timer = setTimeout(() => resolve({ status: 'timeout', notes: null }), LEXICON_STEP_TIMEOUT_MS)
