@@ -59,6 +59,20 @@ export function currentCycleStart(anchor, now) {
   return cycleStart
 }
 
+// Días que faltan para que termine el ciclo vigente (redondeado hacia
+// arriba: "2.1 días restantes" cuenta como 3, para no decir "vence en 2 días"
+// cuando en realidad vence mañana pasado el mediodía). Se usa para el aviso
+// previo de vencimiento (ver AdnPastoralPrompt.jsx como precedente de banner
+// puramente informativo) — reutiliza currentCycleStart/cycleAnchor en vez de
+// duplicar la lógica de ancla ya usada por resolveGenerationsCycle.
+export function daysUntilCycleEnd(profile, now = new Date()) {
+  const anchor = new Date(cycleAnchor(profile))
+  const cycleStart = currentCycleStart(anchor, now)
+  const cycleEnd = addMonthsClamped(cycleStart, 1)
+  const msPerDay = 24 * 60 * 60 * 1000
+  return Math.ceil((cycleEnd - now) / msPerDay)
+}
+
 // Dado un perfil recién leído de Supabase, decide si su ciclo de
 // generaciones venció y qué cambios aplicar. NUNCA escribe en la base de
 // datos — solo calcula; quien llama decide cómo persistir `updates`.

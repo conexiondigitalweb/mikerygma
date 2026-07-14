@@ -2,22 +2,30 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { LIBRARY_STATUSES, ADN_PASTORAL_FIELDS } from '@/lib/constants'
+import { LIBRARY_STATUSES, ADN_PASTORAL_FIELDS, PLANS } from '@/lib/constants'
 import { isAdnPastoralEmpty } from '@/lib/planHelpers'
+import { daysUntilCycleEnd } from '@/lib/billingCycle'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { GenerationCounter } from '@/components/GenerationCounter'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
 import { DowngradeNotice } from '@/components/DowngradeNotice'
+import { RenewalReminder } from '@/components/RenewalReminder'
 import { AdnPastoralPrompt } from '@/components/AdnPastoralPrompt'
 
 const RECENT_LIMIT = 5
 
-// Solo se pospone para el login/sesión actual (ver AdnPastoralPrompt.jsx) —
-// sessionStorage se limpia solo al cerrar la pestaña/navegador, así que
-// vuelve a aparecer en la siguiente sesión sin necesitar una columna en DB.
+// Ventana del aviso previo de vencimiento (ver RenewalReminder.jsx): a
+// partir de cuántos días o menos restantes en el ciclo empieza a mostrarse.
+const RENEWAL_REMINDER_WINDOW_DAYS = 5
+
+// Ambos se posponen solo para el login/sesión actual (ver
+// AdnPastoralPrompt.jsx / RenewalReminder.jsx) — sessionStorage se limpia
+// solo al cerrar la pestaña/navegador, así que vuelven a aparecer en la
+// siguiente sesión sin necesitar una columna en DB.
 const ADN_PROMPT_DISMISS_KEY = 'mikerygma_adn_prompt_dismissed'
+const RENEWAL_REMINDER_DISMISS_KEY = 'mikerygma_renewal_reminder_dismissed'
 
 function statusMeta(status) {
   return LIBRARY_STATUSES.find((s) => s.value === status) ?? LIBRARY_STATUSES[0]
@@ -33,13 +41,16 @@ export function Dashboard() {
   const [adnPromptDismissed, setAdnPromptDismissed] = useState(
     () => sessionStorage.getItem(ADN_PROMPT_DISMISS_KEY) === 'true'
   )
+  const [renewalReminderDismissed, setRenewalReminderDismissed] = useState(
+    () => sessionStorage.getItem(RENEWAL_REMINDER_DISMISS_KEY) === 'true'
+  )
 
   useEffect(() => {
     if (!user) return
 
     supabase
       .from('profiles')
-      .select(`full_name, generations_used, generations_limit, plan, downgraded_at, ${ADN_PASTORAL_FIELDS.join(', ')}`)
+      .select(`full_name, generations_used, generations_limit, plan, plan_started_at, downgraded_at, ${ADN_PASTORAL_FIELDS.join(', ')}`)
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
@@ -81,11 +92,29 @@ export function Dashboard() {
 
   const userPlan = profile?.plan ?? 'free'
   const isPaidPlan = userPlan === 'mensajero' || userPlan === 'proclamador'
-  const showAdnPrompt = !loading && isPaidPlan && !adnPromptDismissed && isAdnPastoralEmpty(profile)
+  const isDowngraded = !loading && Boolean(profile?.downgraded_at)
+
+  const daysLeftInCycle = isPaidPlan && profile?.plan_started_at ? daysUntilCycleEnd(profile) : null
+  const showRenewalReminder =
+    !loading &&
+    !isDowngraded &&
+    isPaidPlan &&
+    !renewalReminderDismissed &&
+    daysLeftInCycle !== null &&
+    daysLeftInCycle >= 0 &&
+    daysLeftInCycle <= RENEWAL_REMINDER_WINDOW_DAYS
+
+  const showAdnPrompt =
+    !loading && !isDowngraded && !showRenewalReminder && isPaidPlan && !adnPromptDismissed && isAdnPastoralEmpty(profile)
 
   const handleDismissAdnPrompt = () => {
     sessionStorage.setItem(ADN_PROMPT_DISMISS_KEY, 'true')
     setAdnPromptDismissed(true)
+  }
+
+  const handleDismissRenewalReminder = () => {
+    sessionStorage.setItem(RENEWAL_REMINDER_DISMISS_KEY, 'true')
+    setRenewalReminderDismissed(true)
   }
 
   return (
@@ -97,13 +126,25 @@ export function Dashboard() {
         Este es tu panel de MiKerygma. Desde aquí generarás tus sermones, devocionales y contenido.
       </p>
 
-      {!loading && profile?.downgraded_at && (
+      {isDowngraded && (
         <div className="mt-6">
           <DowngradeNotice
             userId={user.id}
             fullName={profile.full_name}
             email={user.email}
             onDismiss={() => setProfile((prev) => ({ ...prev, downgraded_at: null }))}
+          />
+        </div>
+      )}
+
+      {showRenewalReminder && (
+        <div className="mt-6">
+          <RenewalReminder
+            planLabel={PLANS[userPlan]?.name ?? userPlan}
+            daysLeft={daysLeftInCycle}
+            fullName={profile.full_name}
+            email={user.email}
+            onDismiss={handleDismissRenewalReminder}
           />
         </div>
       )}
