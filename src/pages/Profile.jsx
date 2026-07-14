@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
 import {
@@ -31,6 +32,8 @@ const PHRASES_TO_AVOID_MAX = 500
 
 export function Profile() {
   const { user } = useAuth()
+  const location = useLocation()
+  const adnSectionRef = useRef(null)
   const [profile, setProfile] = useState(null)
   const [loading, setLoading] = useState(true)
   const [editing, setEditing] = useState(false)
@@ -88,6 +91,22 @@ export function Profile() {
     setError('')
     setEditing(true)
   }
+
+  // Entrada directa desde AdnPastoralPrompt.jsx (Dashboard): el link a
+  // /profile#adn-pastoral debe abrir el formulario de edición ya en modo
+  // edición y llevar el scroll a esa sección específica, no solo a la página.
+  useEffect(() => {
+    if (!loading && profile && location.hash === '#adn-pastoral') {
+      startEditing()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, profile])
+
+  useEffect(() => {
+    if (editing && location.hash === '#adn-pastoral') {
+      adnSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }
+  }, [editing, location.hash])
 
   const handleSave = async (e) => {
     e.preventDefault()
@@ -227,10 +246,12 @@ export function Profile() {
 
               <Separator />
 
-              <GroupHeader
-                title="Tu identidad ministerial"
-                description="Define qué verdad bíblica suele ser el eje de tu ministerio y cómo enseñas."
-              />
+              <div ref={adnSectionRef}>
+                <GroupHeader
+                  title="Tu identidad ministerial"
+                  description="Define qué verdad bíblica suele ser el eje de tu ministerio y cómo enseñas."
+                />
+              </div>
 
               <LockableGroup
                 locked={!hasFullAdn}

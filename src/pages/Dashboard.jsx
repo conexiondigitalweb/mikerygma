@@ -2,15 +2,22 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
-import { LIBRARY_STATUSES } from '@/lib/constants'
+import { LIBRARY_STATUSES, ADN_PASTORAL_FIELDS } from '@/lib/constants'
+import { isAdnPastoralEmpty } from '@/lib/planHelpers'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { GenerationCounter } from '@/components/GenerationCounter'
 import { UpgradePrompt } from '@/components/UpgradePrompt'
 import { DowngradeNotice } from '@/components/DowngradeNotice'
+import { AdnPastoralPrompt } from '@/components/AdnPastoralPrompt'
 
 const RECENT_LIMIT = 5
+
+// Solo se pospone para el login/sesión actual (ver AdnPastoralPrompt.jsx) —
+// sessionStorage se limpia solo al cerrar la pestaña/navegador, así que
+// vuelve a aparecer en la siguiente sesión sin necesitar una columna en DB.
+const ADN_PROMPT_DISMISS_KEY = 'mikerygma_adn_prompt_dismissed'
 
 function statusMeta(status) {
   return LIBRARY_STATUSES.find((s) => s.value === status) ?? LIBRARY_STATUSES[0]
@@ -23,13 +30,16 @@ export function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [generations, setGenerations] = useState([])
   const [loadingHistory, setLoadingHistory] = useState(true)
+  const [adnPromptDismissed, setAdnPromptDismissed] = useState(
+    () => sessionStorage.getItem(ADN_PROMPT_DISMISS_KEY) === 'true'
+  )
 
   useEffect(() => {
     if (!user) return
 
     supabase
       .from('profiles')
-      .select('full_name, generations_used, generations_limit, plan, downgraded_at')
+      .select(`full_name, generations_used, generations_limit, plan, downgraded_at, ${ADN_PASTORAL_FIELDS.join(', ')}`)
       .eq('id', user.id)
       .single()
       .then(({ data }) => {
@@ -70,6 +80,13 @@ export function Dashboard() {
   }
 
   const userPlan = profile?.plan ?? 'free'
+  const isPaidPlan = userPlan === 'mensajero' || userPlan === 'proclamador'
+  const showAdnPrompt = !loading && isPaidPlan && !adnPromptDismissed && isAdnPastoralEmpty(profile)
+
+  const handleDismissAdnPrompt = () => {
+    sessionStorage.setItem(ADN_PROMPT_DISMISS_KEY, 'true')
+    setAdnPromptDismissed(true)
+  }
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-16">
@@ -88,6 +105,12 @@ export function Dashboard() {
             email={user.email}
             onDismiss={() => setProfile((prev) => ({ ...prev, downgraded_at: null }))}
           />
+        </div>
+      )}
+
+      {showAdnPrompt && (
+        <div className="mt-6">
+          <AdnPastoralPrompt onDismiss={handleDismissAdnPrompt} />
         </div>
       )}
 

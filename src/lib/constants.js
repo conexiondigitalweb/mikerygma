@@ -114,6 +114,21 @@ export const APPLICATION_TYPES = [
   { value: 'familiar', label: 'Familiar — aplicable en el hogar y las relaciones' },
 ]
 
+// Los 9 campos que componen el ADN Pastoral del usuario (ver Profile.jsx) —
+// usado por isAdnPastoralEmpty() en planHelpers.js para detectar si el
+// usuario nunca ha tocado esta sección (ver AdnPastoralPrompt.jsx).
+export const ADN_PASTORAL_FIELDS = [
+  'pastoral_tone',
+  'target_audience',
+  'pastoral_instructions',
+  'theological_center',
+  'teaching_style',
+  'confrontation_level',
+  'application_type',
+  'pastoral_closing',
+  'phrases_to_avoid',
+]
+
 export const PASTORAL_CLOSINGS = [
   { value: 'llamado', label: 'Llamado a decisión — invita a responder públicamente' },
   { value: 'oracion_guiada', label: 'Oración guiada — cierra con una oración que el oyente repite' },
