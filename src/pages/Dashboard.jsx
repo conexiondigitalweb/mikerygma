@@ -60,7 +60,7 @@ export function Dashboard() {
 
     supabase
       .from('generations')
-      .select('id, title, status, created_at, input_type, input_text, occasion, translation, output_sermon, output_devotional, output_social, output_prayer, passage_paraphrased')
+      .select('id, title, status, created_at, input_type, input_text, occasion, translation, output_sermon, output_devotional, output_social, output_prayer, output_lexicon_notes, passage_paraphrased')
       .eq('user_id', user.id)
       .order('created_at', { ascending: false })
       .limit(RECENT_LIMIT)
@@ -84,6 +84,7 @@ export function Dashboard() {
           devocional: generation.output_devotional,
           redes: generation.output_social,
           oracion_cierre: generation.output_prayer,
+          notas_lexicas: generation.output_lexicon_notes,
           passage_paraphrased: generation.passage_paraphrased,
         },
       },
