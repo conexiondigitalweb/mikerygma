@@ -10,6 +10,8 @@ import { Result } from '@/pages/Result'
 import { Library } from '@/pages/Library'
 import { Pricing } from '@/pages/Pricing'
 import { Profile } from '@/pages/Profile'
+import { Terminos } from '@/pages/Terminos'
+import { Privacidad } from '@/pages/Privacidad'
 
 function App() {
   return (
@@ -18,6 +20,8 @@ function App() {
         <Route path="/" element={<HomeRoute />} />
         <Route path="/login" element={<Login />} />
         <Route path="/pricing" element={<Pricing />} />
+        <Route path="/terminos" element={<Terminos />} />
+        <Route path="/privacidad" element={<Privacidad />} />
         <Route
           path="/onboarding"
           element={

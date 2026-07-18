@@ -41,6 +41,12 @@ export function Footer() {
           <Link to="/pricing" className="hover:text-primary hover:underline">
             Precios
           </Link>
+          <Link to="/terminos" className="hover:text-primary hover:underline">
+            Términos y Condiciones
+          </Link>
+          <Link to="/privacidad" className="hover:text-primary hover:underline">
+            Política de Privacidad
+          </Link>
           <a
             href={buildWhatsAppLink(contactMessage)}
             target="_blank"
@@ -53,15 +59,7 @@ export function Footer() {
         </nav>
 
         <p>
-          Construido con ❤️ por{' '}
-          <a
-            href="https://lagraciaquetransforma.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="font-medium text-primary hover:underline"
-          >
-            La Gracia que Transforma
-          </a>
+          Construido con ❤️ por <span className="font-medium text-foreground">La Gracia que Transforma</span>
         </p>
 
         <p className="text-xs">© {new Date().getFullYear()} MiKerygma. Todos los derechos reservados.</p>
