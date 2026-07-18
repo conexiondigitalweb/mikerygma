@@ -1,5 +1,7 @@
-import { Routes, Route } from 'react-router-dom'
+import { useEffect, useRef } from 'react'
+import { Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
+import { trackPageView } from '@/lib/metaPixel'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { HomeRoute } from '@/components/HomeRoute'
 import { Login } from '@/pages/Login'
@@ -13,7 +15,27 @@ import { Profile } from '@/pages/Profile'
 import { Terminos } from '@/pages/Terminos'
 import { Privacidad } from '@/pages/Privacidad'
 
+// El snippet base en index.html (ver <head>) ya dispara el PageView de la
+// carga inicial — sin `skippedFirst`, este efecto dispararía un segundo
+// PageView duplicado para esa misma primera carga, porque useEffect también
+// corre en el primer render. Solo a partir del segundo cambio de pathname
+// (navegación real dentro de la SPA) se dispara trackPageView().
+function useMetaPixelPageView() {
+  const location = useLocation()
+  const skippedFirst = useRef(false)
+
+  useEffect(() => {
+    if (!skippedFirst.current) {
+      skippedFirst.current = true
+      return
+    }
+    trackPageView()
+  }, [location.pathname])
+}
+
 function App() {
+  useMetaPixelPageView()
+
   return (
     <Layout>
       <Routes>

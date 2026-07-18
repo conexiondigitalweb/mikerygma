@@ -110,7 +110,20 @@ export function Privacidad() {
         se comparten con los proveedores externos estrictamente necesarios para operar el servicio (ver sección 3).
       </p>
 
-      <h2>7. Conservación y seguridad de la información</h2>
+      <h2>7. Publicidad y medición con Meta Pixel</h2>
+      <p>
+        MiKerygma usa el <strong>Meta Pixel</strong> (Facebook/Instagram) con fines publicitarios y de medición de
+        campañas. Esto implica el uso de cookies y tecnologías similares de Meta, que pueden recopilar datos de
+        navegación en MiKerygma para mostrar anuncios relevantes en Facebook e Instagram y medir la efectividad de
+        esas campañas.
+      </p>
+      <p>
+        El usuario puede gestionar sus preferencias de anuncios directamente en la configuración de su cuenta de
+        Facebook o Instagram. Meta procesa estos datos bajo sus propias políticas de privacidad, independientes de
+        esta Política.
+      </p>
+
+      <h2>8. Conservación y seguridad de la información</h2>
       <p>
         Los datos se conservan mientras la cuenta del usuario esté activa, y hasta{' '}
         <strong>6 meses adicionales</strong> después de que el usuario elimine su cuenta, para fines de respaldo y

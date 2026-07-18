@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge'
 import { PLANS } from '@/lib/constants'
 import { getUpgradePlan } from '@/lib/planHelpers'
 import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
+import { trackLead, trackViewContent } from '@/lib/metaPixel'
 
 const PLAN_ORDER = ['free', 'mensajero', 'proclamador']
 
@@ -29,6 +30,12 @@ export function Pricing() {
         if (data?.full_name) setFullName(data.full_name)
       })
   }, [user])
+
+  // Se dispara una sola vez al montar (visita a /pricing), no en cada
+  // re-render provocado por la carga del perfil.
+  useEffect(() => {
+    trackViewContent()
+  }, [])
 
   // Sin pasarela de pago automática todavía: "Elegir [plan]" abre WhatsApp
   // con un mensaje pre-llenado en vez de un checkout — ver src/lib/whatsapp.js.
@@ -92,6 +99,7 @@ export function Pricing() {
                       href={buildWhatsAppLink(buildActivationMessage(plan.name))}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={trackLead}
                     >
                       {`Elegir ${plan.name}`}
                     </a>

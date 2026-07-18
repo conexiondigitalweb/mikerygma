@@ -2,6 +2,7 @@ import { AlertTriangle } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
+import { trackLead } from '@/lib/metaPixel'
 
 // Se muestra cuando profiles.downgraded_at no es null — el sistema bajó
 // automáticamente al usuario a plan free porque su plan pago venció sin
@@ -40,7 +41,7 @@ export function DowngradeNotice({ userId, fullName, email, onDismiss }) {
           Entendido
         </Button>
         <Button size="sm" asChild>
-          <a href={buildWhatsAppLink(renewalMessage)} target="_blank" rel="noopener noreferrer">
+          <a href={buildWhatsAppLink(renewalMessage)} target="_blank" rel="noopener noreferrer" onClick={trackLead}>
             Renovar plan
           </a>
         </Button>

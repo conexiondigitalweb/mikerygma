@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { supabase } from '@/lib/supabase'
+import { trackCompleteRegistration } from '@/lib/metaPixel'
 import { DENOMINATIONS, TRANSLATIONS, ROLES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -51,6 +52,7 @@ export function Onboarding() {
     }
 
     await refreshProfile()
+    trackCompleteRegistration()
     setSaved(true)
   }
 
