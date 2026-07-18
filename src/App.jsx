@@ -5,6 +5,7 @@ import { trackPageView } from '@/lib/metaPixel'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { HomeRoute } from '@/components/HomeRoute'
 import { Login } from '@/pages/Login'
+import { ResetPassword } from '@/pages/ResetPassword'
 import { Onboarding } from '@/pages/Onboarding'
 import { Dashboard } from '@/pages/Dashboard'
 import { Generate } from '@/pages/Generate'
@@ -41,6 +42,7 @@ function App() {
       <Routes>
         <Route path="/" element={<HomeRoute />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/pricing" element={<Pricing />} />
         <Route path="/terminos" element={<Terminos />} />
         <Route path="/privacidad" element={<Privacidad />} />

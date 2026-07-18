@@ -35,7 +35,18 @@ export function AuthProvider({ children }) {
 
   const signOut = () => supabase.auth.signOut()
 
-  const value = { user, loading, signIn, signUp, signInWithGoogle, signOut }
+  // Ver Login.jsx ("¿Olvidaste tu contraseña?"): Supabase decide internamente
+  // si el correo existe o no y en ambos casos responde sin error (no revela
+  // existencia de cuentas) — por eso Login.jsx muestra el mismo mensaje de
+  // confirmación sin importar el resultado real de esta llamada.
+  const resetPasswordForEmail = (email, options) => supabase.auth.resetPasswordForEmail(email, options)
+
+  // Ver ResetPassword.jsx: se usa sobre la sesión de recuperación que
+  // Supabase establece automáticamente cuando el usuario llega desde el
+  // enlace del correo (detectSessionInUrl, ver src/lib/supabase.js).
+  const updatePassword = (password) => supabase.auth.updateUser({ password })
+
+  const value = { user, loading, signIn, signUp, signInWithGoogle, signOut, resetPasswordForEmail, updatePassword }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
