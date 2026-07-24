@@ -29,6 +29,7 @@ test-paraphrase-fallback.js
 test-full-cascade.js
 test-quote-styles.js
 test-quote-fix-verify.js
+test-billing-cycle-desync.js
 
 # Editor directories and files
 .vscode/*

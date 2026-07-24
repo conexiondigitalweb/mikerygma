@@ -86,6 +86,28 @@ export function resolveGenerationsCycle(profile, now = new Date()) {
     return { changed: false, profile }
   }
 
+  // `cycleStart` viene de iterar aniversarios de `anchor` (plan_started_at
+  // para planes pagos, created_at para free — ver cycleAnchor) hasta llegar
+  // a `now`: si NINGÚN aniversario completo pasó todavía, currentCycleStart()
+  // devuelve el propio `anchor` sin modificar, así que cycleStart === anchor
+  // en ese caso. Que el ciclo se vea "vencido" (lastReset < cycleStart) a
+  // pesar de que cycleStart === anchor solo puede significar que
+  // generations_reset_at quedó desalineado con un anchor que se acaba de
+  // mover (activación o renovación manual que no lo actualizó junto con
+  // plan_started_at/created_at) — no que haya pasado un ciclo completo sin
+  // renovar. Bug real reportado: un UPDATE manual que solo toca
+  // plan_started_at deja generations_reset_at con un valor viejo, y sin este
+  // chequeo eso se interpretaba como "ciclo vencido sin renovación" y
+  // disparaba un downgrade a los pocos minutos de activar el plan.
+  // Corrige solo el desalineamiento (sincroniza generations_reset_at con el
+  // anchor vigente) sin tocar plan ni generations_used — nunca hace downgrade
+  // ni resetea uso por esto.
+  const cycleJustStarted = cycleStart.getTime() === anchor.getTime()
+  if (cycleJustStarted) {
+    const updates = { generations_reset_at: cycleStart.toISOString() }
+    return { changed: true, event: 'resync', profile: { ...profile, ...updates }, updates }
+  }
+
   if (profile.plan === FREE_PLAN) {
     const updates = { generations_used: 0, generations_reset_at: cycleStart.toISOString() }
     return { changed: true, event: 'reset', profile: { ...profile, ...updates }, updates }
