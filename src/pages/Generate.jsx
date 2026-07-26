@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { supabase } from '@/lib/supabase'
@@ -30,6 +30,12 @@ import { cn } from '@/lib/utils'
 
 const CUSTOM_INSTRUCTIONS_MAX = 500
 const PREVIEW_STORAGE_KEY = 'mikerygma_preview_state'
+
+// Ejemplo prellenado para la primera visita post-onboarding (ver
+// Onboarding.jsx, ?first=true) — un pasaje breve, muy conocido y de
+// aplicación pastoral obvia, para que el primer intento de generación no
+// dependa de que el usuario piense qué escribir.
+const FIRST_TIME_EXAMPLE = { mode: 'pasaje', inputText: 'Salmo 23' }
 
 function readStoredPreview() {
   try {
@@ -110,6 +116,7 @@ function friendlyStreamError(reason) {
 export function Generate() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
 
   const [profile, setProfile] = useState(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
@@ -119,8 +126,20 @@ export function Generate() {
   const [restoredPreview] = useState(() => readStoredPreview())
   const [showGenerationRecoveryNotice] = useState(() => consumeGeneratingFlag())
 
-  const [mode, setMode] = useState(() => restoredPreview?.inputType ?? null)
-  const [inputText, setInputText] = useState(() => restoredPreview?.inputText ?? '')
+  // Solo viene de la redirección de Onboarding.jsx justo tras crear el
+  // perfil — nunca se activa en visitas posteriores a esta pantalla (ver
+  // FIRST_TIME_EXAMPLE arriba). Si hay un preview restaurado de sesión, ese
+  // tiene prioridad — no pisa una generación ya en curso.
+  const [isFirstTimeExample] = useState(
+    () => !restoredPreview && searchParams.get('first') === 'true'
+  )
+
+  const [mode, setMode] = useState(
+    () => restoredPreview?.inputType ?? (isFirstTimeExample ? FIRST_TIME_EXAMPLE.mode : null)
+  )
+  const [inputText, setInputText] = useState(
+    () => restoredPreview?.inputText ?? (isFirstTimeExample ? FIRST_TIME_EXAMPLE.inputText : '')
+  )
   const [translation, setTranslation] = useState(() => restoredPreview?.translation ?? 'RVR1960')
   const [occasion, setOccasion] = useState(() => restoredPreview?.occasion ?? 'culto_dominical')
   const [duration, setDuration] = useState(() => restoredPreview?.duration ?? 'regular')

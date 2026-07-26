@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { supabase } from '@/lib/supabase'
@@ -25,7 +25,6 @@ export function Onboarding() {
   const [churchName, setChurchName] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
-  const [saved, setSaved] = useState(false)
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -53,30 +52,12 @@ export function Onboarding() {
 
     await refreshProfile()
     trackCompleteRegistration()
-    setSaved(true)
-  }
-
-  if (saved) {
-    return (
-      <div className="flex min-h-[80vh] items-center justify-center px-4 py-12">
-        <Card className="w-full max-w-lg text-center">
-          <CardHeader>
-            <CardTitle className="text-2xl">¡Perfil creado!</CardTitle>
-            <CardDescription>
-              Para que tus generaciones suenen más a ti, configura tu ADN pastoral en tu perfil.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3 sm:flex-row">
-            <Button className="w-full" asChild>
-              <Link to="/profile">Configurar mi ADN pastoral</Link>
-            </Button>
-            <Button className="w-full" variant="outline" onClick={() => navigate('/dashboard')}>
-              Ir al Dashboard
-            </Button>
-          </CardContent>
-        </Card>
-      </div>
-    )
+    // Sin pantalla intermedia ("¡Perfil creado!") ni Dashboard: el 88% de los
+    // usuarios que completan onboarding sin generar nunca vuelven a entrar
+    // (ver diagnóstico real), así que se lleva al usuario directo a la
+    // pantalla de generación — ?first=true dispara el prellenado de ejemplo
+    // en Generate.jsx, solo para esta primera visita post-onboarding.
+    navigate('/generate?first=true', { replace: true })
   }
 
   return (
