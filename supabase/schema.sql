@@ -100,10 +100,13 @@ CREATE TABLE theological_review_log (
 -- el embudo de generación (vio_pantalla_generar, click_generar,
 -- generacion_completada, error_generacion) para diagnosticar en qué paso
 -- se atascan los usuarios registrados que nunca completan una generación.
+-- user_id con ON DELETE CASCADE (migración 012) — sin esto, borrar un
+-- usuario de auth.users fallaba con un error de foreign key en cuanto
+-- tuviera cualquier fila en events.
 -- ============================================================
 CREATE TABLE events (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id UUID REFERENCES auth.users(id),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
   event_name TEXT NOT NULL,
   metadata JSONB,
   created_at TIMESTAMPTZ DEFAULT now()
