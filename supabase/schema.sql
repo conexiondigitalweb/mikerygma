@@ -96,6 +96,20 @@ CREATE TABLE theological_review_log (
 );
 
 -- ============================================================
+-- Tabla: events — log de eventos de producto (migración 011). Instrumenta
+-- el embudo de generación (vio_pantalla_generar, click_generar,
+-- generacion_completada, error_generacion) para diagnosticar en qué paso
+-- se atascan los usuarios registrados que nunca completan una generación.
+-- ============================================================
+CREATE TABLE events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id),
+  event_name TEXT NOT NULL,
+  metadata JSONB,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
 -- RLS (Row Level Security)
 -- Patrón: BYPASSRLS y GRANT son capas separadas — siempre hacer ambas.
 -- ============================================================
@@ -103,6 +117,7 @@ ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE generations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scripture_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE theological_review_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users read own profile" ON profiles
   FOR SELECT USING (auth.uid() = id);
@@ -134,6 +149,12 @@ CREATE POLICY "Users delete own scripture_usage" ON scripture_usage
 CREATE POLICY "Users read own theological_review_log" ON theological_review_log
   FOR SELECT USING (auth.uid() = user_id);
 
+CREATE POLICY "Users insert own events" ON events
+  FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users read own events" ON events
+  FOR SELECT USING (auth.uid() = user_id);
+
 -- ============================================================
 -- GRANT explícito (necesario aunque service_role tenga BYPASSRLS)
 -- ============================================================
@@ -141,10 +162,14 @@ GRANT ALL ON profiles TO authenticated;
 GRANT ALL ON generations TO authenticated;
 GRANT ALL ON scripture_usage TO authenticated;
 GRANT ALL ON theological_review_log TO authenticated;
+GRANT ALL ON events TO authenticated;
 GRANT ALL ON profiles TO service_role;
 GRANT ALL ON generations TO service_role;
 GRANT ALL ON scripture_usage TO service_role;
 GRANT ALL ON theological_review_log TO service_role;
+GRANT ALL ON events TO service_role;
 
 -- Índice para la consulta de reutilización de pasajes (libro + capítulo, por usuario)
 CREATE INDEX scripture_usage_user_book_chapter_idx ON scripture_usage (user_id, book, chapter);
+CREATE INDEX events_user_id_event_name_idx ON events (user_id, event_name);
+CREATE INDEX events_created_at_idx ON events (created_at DESC);

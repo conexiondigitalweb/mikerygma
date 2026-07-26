@@ -13,6 +13,7 @@ import {
   LEXICON_STAGE_MESSAGES,
 } from '@/lib/constants'
 import { canUseFeature } from '@/lib/planHelpers'
+import { logEvent } from '@/lib/events'
 import { parseReference } from '@/lib/scriptureParser'
 import { cleanJsonResponse, repairTruncatedJson } from '@/lib/jsonRepair'
 import { STREAM_ERROR_MARKER, STAGE_MARKER_REGEX, META_MARKER_REGEX } from '@/lib/streamMarkers'
@@ -163,6 +164,13 @@ export function Generate() {
 
   useEffect(() => {
     return () => abortControllerRef.current?.abort()
+  }, [])
+
+  // Evento de embudo 1/4: se dispara una sola vez al entrar a esta pantalla,
+  // sin importar en qué paso del formulario (elegir modo, preview, etc.) se
+  // quede el usuario después — ver src/lib/events.js.
+  useEffect(() => {
+    logEvent('vio_pantalla_generar')
   }, [])
 
   useEffect(() => {
@@ -376,6 +384,11 @@ export function Generate() {
     const requestId = ++requestIdRef.current
     const isStale = () => requestIdRef.current !== requestId
 
+    // Evento de embudo 2/4: se dispara al presionar el botón que dispara la
+    // generación, después de la guarda de reentrancia (para no registrar
+    // clics duplicados que ni siquiera arrancan un stream nuevo).
+    logEvent('click_generar')
+
     const controller = new AbortController()
     abortControllerRef.current = controller
 
@@ -397,6 +410,11 @@ export function Generate() {
 
     const fail = (message) => {
       if (isStale()) return
+      // Evento de embudo 4/4: cubre TODOS los caminos de fallo visibles al
+      // usuario (HTTP, red, stream interrumpido, JSON no parseable, fallo al
+      // guardar) porque todos pasan por este mismo helper — ver cada llamada
+      // a fail() más abajo.
+      logEvent('error_generacion', { message })
       clearGeneratingFlag()
       setError(message)
       setGenerating(false)
@@ -549,6 +567,10 @@ export function Generate() {
 
       setProfile((prev) => (prev ? { ...prev, generations_used: prev.generations_used + 1 } : prev))
       clearGeneratingFlag()
+      // Evento de embudo 3/4: la generación terminó exitosamente Y quedó
+      // guardada — no antes, porque un fallo en save-generation ya se cuenta
+      // como error_generacion arriba, no como éxito.
+      logEvent('generacion_completada', { generation_id: saveData.id, model_used: modelUsed })
       navigate('/result', {
         state: {
           result: {
