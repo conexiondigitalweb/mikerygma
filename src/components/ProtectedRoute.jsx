@@ -20,7 +20,11 @@ export function ProtectedRoute({ children }) {
   }
 
   if (!user) {
-    return <Navigate to="/login" replace />
+    // Se guarda la ruta que el usuario intentaba visitar (ej. un link de
+    // /generate?first=true en un correo de reactivación) para que Login.jsx
+    // pueda volver ahí después de loguearse, en vez de mandarlo siempre a
+    // /dashboard sin importar de dónde vino.
+    return <Navigate to="/login" state={{ from: location }} replace />
   }
 
   if (hasProfile === null) {

@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom'
 import { MailCheck } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
 import { Button } from '@/components/ui/button'
@@ -15,6 +15,13 @@ export function Login() {
   const defaultTab = searchParams.get('mode') === 'signup' ? 'signup' : 'login'
   const { signIn, signUp, signInWithGoogle, resetPasswordForEmail } = useAuth()
   const navigate = useNavigate()
+  const location = useLocation()
+
+  // Ver ProtectedRoute.jsx: si el usuario llegó acá redirigido desde una ruta
+  // protegida (ej. un link de /generate?first=true en un correo), `from`
+  // trae esa ruta original para volver ahí en vez de siempre a /dashboard.
+  const from = location.state?.from
+  const redirectPath = from ? `${from.pathname}${from.search}` : '/dashboard'
 
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -40,7 +47,7 @@ export function Login() {
       setError(error.message)
       return
     }
-    navigate('/dashboard')
+    navigate(redirectPath)
   }
 
   const handleSignup = async (e) => {
@@ -58,7 +65,7 @@ export function Login() {
 
   const handleGoogle = async () => {
     setError('')
-    const { error } = await signInWithGoogle()
+    const { error } = await signInWithGoogle(redirectPath)
     if (error) setError(error.message)
   }
 

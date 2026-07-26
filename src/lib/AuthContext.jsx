@@ -27,10 +27,13 @@ export function AuthProvider({ children }) {
   const signUp = (email, password) =>
     supabase.auth.signUp({ email, password })
 
-  const signInWithGoogle = () =>
+  // `redirectPath` permite volver a donde el usuario intentaba ir antes de
+  // pasar por /login (ver ProtectedRoute.jsx/Login.jsx) — por defecto
+  // /dashboard, igual que antes.
+  const signInWithGoogle = (redirectPath = '/dashboard') =>
     supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/dashboard` },
+      options: { redirectTo: `${window.location.origin}${redirectPath}` },
     })
 
   const signOut = () => supabase.auth.signOut()
