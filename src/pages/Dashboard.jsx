@@ -141,6 +141,8 @@ export function Dashboard() {
       {showRenewalReminder && (
         <div className="mt-6">
           <RenewalReminder
+            userId={user.id}
+            plan={userPlan}
             planLabel={PLANS[userPlan]?.name ?? userPlan}
             daysLeft={daysLeftInCycle}
             fullName={profile.full_name}

@@ -44,8 +44,8 @@ export function Pricing() {
     logEvent('vio_pricing')
   }, [])
 
-  // Sin pasarela de pago automática todavía: "Elegir [plan]" abre WhatsApp
-  // con un mensaje pre-llenado en vez de un checkout — ver src/lib/whatsapp.js.
+  // WhatsApp queda como respaldo secundario (link discreto debajo del botón
+  // principal) — ver src/lib/whatsapp.js.
   const buildActivationMessage = (planName) => {
     const id = identityLine({ fullName, email: user?.email })
     return id
@@ -53,11 +53,12 @@ export function Pricing() {
       : `Hola, quiero activar el plan ${planName} en MiKerygma.`
   }
 
-  // Pago automático con Wompi, EN PARALELO al link de WhatsApp existente
-  // (respaldo mientras se prueba) — no reemplaza nada de la activación
-  // manual. Requiere sesión activa: el backend necesita userId para armar
-  // la referencia que luego el webhook usa para saber a quién activarle el
-  // plan (ver api/wompi/create-signature.js y api/wompi/webhook.js).
+  // Wompi es ahora el camino PRINCIPAL de pago (antes era un botón aparte,
+  // secundario a WhatsApp). Requiere sesión activa: el backend necesita
+  // userId para armar la referencia que luego el webhook usa para saber a
+  // quién activarle el plan (ver api/wompi/create-signature.js y
+  // api/wompi/webhook.js) — por eso el botón principal es un link a
+  // /login?mode=signup cuando no hay sesión, igual que "Empieza gratis".
   const handleWompiPay = async (planKey, planName) => {
     if (!user) return
     setWompiError('')
@@ -76,6 +77,8 @@ export function Pricing() {
         return
       }
 
+      logEvent('click_wompi_pago', { source: 'pricing', plan: planKey })
+
       // El widget se abre embebido sobre esta misma página (no navega a
       // otro sitio) — redirectUrl es solo a dónde vuelve el navegador
       // DESPUÉS de que el modal se cierra.
@@ -88,7 +91,7 @@ export function Pricing() {
       })
     } catch (err) {
       console.error(`Error iniciando pago con Wompi (${planName}):`, err)
-      setWompiError('No se pudo conectar con Wompi. Intenta de nuevo o usa el botón de WhatsApp.')
+      setWompiError('No se pudo conectar con Wompi. Intenta de nuevo o usa el link de WhatsApp de abajo.')
     } finally {
       setPayingPlan(null)
     }
@@ -141,30 +144,35 @@ export function Pricing() {
                   <Button className="mt-6 w-full" variant={isRecommended ? 'default' : 'outline'} asChild>
                     <Link to="/login?mode=signup">Empieza gratis</Link>
                   </Button>
-                ) : (
+                ) : !user ? (
                   <Button className="mt-6 w-full" variant={isRecommended ? 'default' : 'outline'} asChild>
+                    <Link to="/login?mode=signup">{`Elegir ${plan.name}`}</Link>
+                  </Button>
+                ) : (
+                  <Button
+                    className="mt-6 w-full"
+                    variant={isRecommended ? 'default' : 'outline'}
+                    disabled={payingPlan === key}
+                    onClick={() => handleWompiPay(key, plan.name)}
+                  >
+                    {payingPlan === key ? 'Abriendo Wompi...' : `Elegir ${plan.name}`}
+                  </Button>
+                )}
+                {!isCurrent && key !== 'free' && (
+                  <p className="mt-2 text-center text-xs">
                     <a
                       href={buildWhatsAppLink(buildActivationMessage(plan.name))}
                       target="_blank"
                       rel="noopener noreferrer"
+                      className="text-muted-foreground underline underline-offset-2 hover:text-foreground"
                       onClick={() => {
                         trackLead()
                         logEvent('click_whatsapp_pago', { source: 'pricing', plan: key })
                       }}
                     >
-                      {`Elegir ${plan.name}`}
+                      ¿Prefieres pagar por WhatsApp?
                     </a>
-                  </Button>
-                )}
-                {!isCurrent && key !== 'free' && user && (
-                  <Button
-                    className="mt-2 w-full"
-                    variant="outline"
-                    disabled={payingPlan === key}
-                    onClick={() => handleWompiPay(key, plan.name)}
-                  >
-                    {payingPlan === key ? 'Abriendo Wompi...' : 'Pagar con Wompi'}
-                  </Button>
+                  </p>
                 )}
               </CardContent>
             </Card>

@@ -1,4 +1,5 @@
 import { AlertTriangle } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
@@ -12,11 +13,13 @@ import { logEvent } from '@/lib/events'
 // pendiente de depuración SMTP, ver CLAUDE.md), así que este banner es hoy
 // la única notificación — el usuario la ve la próxima vez que entra.
 //
-// "Renovar plan" abre WhatsApp en vez de /pricing: no hay pasarela de pago
-// automática todavía, así que la renovación se coordina manualmente. NOTA:
-// el downgrade sobreescribe profiles.plan a 'free' sin dejar registro de
-// cuál era el plan pago anterior (ni billingCycle.js ni ninguna otra tabla
-// lo guardan), así que el mensaje no puede nombrar el plan específico.
+// "Renovar plan" lleva a /pricing en vez de abrir el widget de Wompi
+// directamente: el downgrade sobreescribe profiles.plan a 'free' sin dejar
+// registro de cuál era el plan pago anterior (ni billingCycle.js ni ninguna
+// otra tabla lo guardan), así que no hay forma de saber qué plan cobrar acá
+// mismo — el usuario elige en /pricing, donde el botón principal ya usa
+// Wompi. WhatsApp queda como link secundario de respaldo, igual que en
+// Pricing.jsx.
 export function DowngradeNotice({ userId, fullName, email, onDismiss }) {
   const handleDismiss = async () => {
     await supabase.from('profiles').update({ downgraded_at: null }).eq('id', userId)
@@ -37,23 +40,27 @@ export function DowngradeNotice({ userId, fullName, email, onDismiss }) {
           completa, ADN Pastoral y demás beneficios de tu plan anterior.
         </span>
       </p>
-      <div className="flex shrink-0 gap-2 sm:ml-4">
-        <Button size="sm" variant="outline" onClick={handleDismiss}>
-          Entendido
-        </Button>
-        <Button size="sm" asChild>
-          <a
-            href={buildWhatsAppLink(renewalMessage)}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={() => {
-              trackLead()
-              logEvent('click_whatsapp_pago', { source: 'downgrade_notice' })
-            }}
-          >
-            Renovar plan
-          </a>
-        </Button>
+      <div className="flex shrink-0 flex-col items-end gap-1 sm:ml-4">
+        <div className="flex gap-2">
+          <Button size="sm" variant="outline" onClick={handleDismiss}>
+            Entendido
+          </Button>
+          <Button size="sm" asChild>
+            <Link to="/pricing">Renovar plan</Link>
+          </Button>
+        </div>
+        <a
+          href={buildWhatsAppLink(renewalMessage)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-muted-foreground underline underline-offset-2 hover:text-foreground"
+          onClick={() => {
+            trackLead()
+            logEvent('click_whatsapp_pago', { source: 'downgrade_notice' })
+          }}
+        >
+          ¿Prefieres pagar por WhatsApp?
+        </a>
       </div>
     </div>
   )
