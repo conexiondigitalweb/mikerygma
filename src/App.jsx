@@ -13,6 +13,7 @@ import { Generate } from '@/pages/Generate'
 import { Result } from '@/pages/Result'
 import { Library } from '@/pages/Library'
 import { Pricing } from '@/pages/Pricing'
+import { PagoExitoso } from '@/pages/PagoExitoso'
 import { Profile } from '@/pages/Profile'
 import { Terminos } from '@/pages/Terminos'
 import { Privacidad } from '@/pages/Privacidad'
@@ -99,6 +100,14 @@ function App() {
           element={
             <ProtectedRoute>
               <Profile />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/pago-exitoso"
+          element={
+            <ProtectedRoute>
+              <PagoExitoso />
             </ProtectedRoute>
           }
         />

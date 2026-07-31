@@ -126,3 +126,24 @@ export function resolveGenerationsCycle(profile, now = new Date()) {
   }
   return { changed: true, event: 'downgrade', profile: { ...profile, ...updates }, updates }
 }
+
+// Construye el update para activar (o renovar) un plan pago tras un pago
+// confirmado (ver api/wompi/webhook.js), dejando plan_started_at y
+// generations_reset_at sincronizados al MISMO instante — exactamente el
+// requisito que corrige el chequeo `cycleJustStarted` de arriba: una
+// activación que deja esas dos columnas desalineadas dispara un downgrade
+// falso casi inmediato (bug real, ya corregido). `activatedAt` debe ser el
+// timestamp de la transacción confirmada por Wompi, no `new Date()` al
+// procesar el webhook, para que reintentos del mismo evento produzcan
+// exactamente el mismo update (idempotente) en vez de mover el ciclo cada vez.
+export function buildPlanActivationUpdate(plan, generationsLimit, activatedAt = new Date()) {
+  const iso = activatedAt.toISOString()
+  return {
+    plan,
+    generations_limit: generationsLimit,
+    generations_used: 0,
+    plan_started_at: iso,
+    generations_reset_at: iso,
+    downgraded_at: null,
+  }
+}

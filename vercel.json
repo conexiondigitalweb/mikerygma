@@ -8,6 +8,12 @@
     },
     "api/save-generation.js": {
       "maxDuration": 30
+    },
+    "api/wompi/create-signature.js": {
+      "maxDuration": 15
+    },
+    "api/wompi/webhook.js": {
+      "maxDuration": 15
     }
   },
   "rewrites": [

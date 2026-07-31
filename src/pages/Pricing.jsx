@@ -11,6 +11,7 @@ import { getUpgradePlan } from '@/lib/planHelpers'
 import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
 import { trackLead, trackViewContent } from '@/lib/metaPixel'
 import { logEvent } from '@/lib/events'
+import { openWompiCheckout } from '@/lib/wompi'
 
 const PLAN_ORDER = ['free', 'mensajero', 'proclamador']
 
@@ -18,6 +19,10 @@ export function Pricing() {
   const { user } = useAuth()
   const [currentPlan, setCurrentPlan] = useState(null)
   const [fullName, setFullName] = useState(null)
+  // Plan cuyo pago con Wompi está en curso (deshabilita solo ESE botón,
+  // no toda la página) — null si ninguno.
+  const [payingPlan, setPayingPlan] = useState(null)
+  const [wompiError, setWompiError] = useState('')
 
   useEffect(() => {
     if (!user) return
@@ -46,6 +51,47 @@ export function Pricing() {
     return id
       ? `Hola, ${id} y quiero activar el plan ${planName} en MiKerygma.`
       : `Hola, quiero activar el plan ${planName} en MiKerygma.`
+  }
+
+  // Pago automático con Wompi, EN PARALELO al link de WhatsApp existente
+  // (respaldo mientras se prueba) — no reemplaza nada de la activación
+  // manual. Requiere sesión activa: el backend necesita userId para armar
+  // la referencia que luego el webhook usa para saber a quién activarle el
+  // plan (ver api/wompi/create-signature.js y api/wompi/webhook.js).
+  const handleWompiPay = async (planKey, planName) => {
+    if (!user) return
+    setWompiError('')
+    setPayingPlan(planKey)
+
+    try {
+      const response = await fetch('/api/wompi/create-signature', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ plan: planKey, userId: user.id }),
+      })
+      const data = await response.json()
+
+      if (!response.ok) {
+        setWompiError(data.error ?? 'No se pudo iniciar el pago con Wompi.')
+        return
+      }
+
+      // El widget se abre embebido sobre esta misma página (no navega a
+      // otro sitio) — redirectUrl es solo a dónde vuelve el navegador
+      // DESPUÉS de que el modal se cierra.
+      await openWompiCheckout({
+        publicKey: data.publicKey,
+        amountInCents: data.amountInCents,
+        reference: data.reference,
+        signature: data.signature,
+        redirectUrl: `${window.location.origin}/pago-exitoso`,
+      })
+    } catch (err) {
+      console.error(`Error iniciando pago con Wompi (${planName}):`, err)
+      setWompiError('No se pudo conectar con Wompi. Intenta de nuevo o usa el botón de WhatsApp.')
+    } finally {
+      setPayingPlan(null)
+    }
   }
 
   const recommendedPlan = currentPlan ? getUpgradePlan(currentPlan) : 'mensajero'
@@ -110,11 +156,25 @@ export function Pricing() {
                     </a>
                   </Button>
                 )}
+                {!isCurrent && key !== 'free' && user && (
+                  <Button
+                    className="mt-2 w-full"
+                    variant="outline"
+                    disabled={payingPlan === key}
+                    onClick={() => handleWompiPay(key, plan.name)}
+                  >
+                    {payingPlan === key ? 'Abriendo Wompi...' : 'Pagar con Wompi'}
+                  </Button>
+                )}
               </CardContent>
             </Card>
           )
         })}
       </div>
+
+      {wompiError && (
+        <p className="mx-auto mt-4 max-w-md text-center text-sm text-destructive">{wompiError}</p>
+      )}
     </div>
   )
 }

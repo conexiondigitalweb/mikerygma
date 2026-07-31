@@ -116,6 +116,24 @@ CREATE TABLE events (
 );
 
 -- ============================================================
+-- Tabla: wompi_payment_events — log de auditoría de TODAS las notificaciones
+-- de pago de Wompi (migración 014), no solo las fallidas — ver
+-- api/wompi/webhook.js. Solo la escribe el webhook (service_role); no hay
+-- flujo de la app que la lea.
+-- ============================================================
+CREATE TABLE wompi_payment_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
+  plan TEXT,
+  reference TEXT,
+  wompi_transaction_id TEXT,
+  status TEXT NOT NULL,
+  amount_in_cents INTEGER,
+  raw_event JSONB,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- ============================================================
 -- RLS (Row Level Security)
 -- Patrón: BYPASSRLS y GRANT son capas separadas — siempre hacer ambas.
 -- ============================================================
@@ -124,6 +142,7 @@ ALTER TABLE generations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scripture_usage ENABLE ROW LEVEL SECURITY;
 ALTER TABLE theological_review_log ENABLE ROW LEVEL SECURITY;
 ALTER TABLE events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE wompi_payment_events ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "Users read own profile" ON profiles
   FOR SELECT USING (auth.uid() = id);
@@ -174,6 +193,7 @@ GRANT ALL ON generations TO service_role;
 GRANT ALL ON scripture_usage TO service_role;
 GRANT ALL ON theological_review_log TO service_role;
 GRANT ALL ON events TO service_role;
+GRANT ALL ON wompi_payment_events TO service_role;
 
 -- Índice para la consulta de reutilización de pasajes (libro + capítulo, por usuario)
 CREATE INDEX scripture_usage_user_book_chapter_idx ON scripture_usage (user_id, book, chapter);
