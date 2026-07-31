@@ -2,6 +2,7 @@ import { Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
 import { trackLead } from '@/lib/metaPixel'
+import { logEvent } from '@/lib/events'
 
 // Aviso PREVIO de vencimiento (ver Dashboard.jsx): se muestra 5 días o menos
 // antes de que termine el ciclo vigente de un plan pago, para que el usuario
@@ -35,7 +36,15 @@ export function RenewalReminder({ planLabel, daysLeft, fullName, email, onDismis
           Entendido
         </Button>
         <Button size="sm" asChild>
-          <a href={buildWhatsAppLink(renewalMessage)} target="_blank" rel="noopener noreferrer" onClick={trackLead}>
+          <a
+            href={buildWhatsAppLink(renewalMessage)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => {
+              trackLead()
+              logEvent('click_whatsapp_pago', { source: 'renewal_reminder' })
+            }}
+          >
             Renovar ahora
           </a>
         </Button>

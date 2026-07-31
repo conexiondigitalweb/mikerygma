@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button'
 import { supabase } from '@/lib/supabase'
 import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
 import { trackLead } from '@/lib/metaPixel'
+import { logEvent } from '@/lib/events'
 
 // Se muestra cuando profiles.downgraded_at no es null — el sistema bajó
 // automáticamente al usuario a plan free porque su plan pago venció sin
@@ -41,7 +42,15 @@ export function DowngradeNotice({ userId, fullName, email, onDismiss }) {
           Entendido
         </Button>
         <Button size="sm" asChild>
-          <a href={buildWhatsAppLink(renewalMessage)} target="_blank" rel="noopener noreferrer" onClick={trackLead}>
+          <a
+            href={buildWhatsAppLink(renewalMessage)}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={() => {
+              trackLead()
+              logEvent('click_whatsapp_pago', { source: 'downgrade_notice' })
+            }}
+          >
             Renovar plan
           </a>
         </Button>

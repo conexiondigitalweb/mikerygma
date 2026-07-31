@@ -10,6 +10,7 @@ import { PLANS } from '@/lib/constants'
 import { getUpgradePlan } from '@/lib/planHelpers'
 import { buildWhatsAppLink, identityLine } from '@/lib/whatsapp'
 import { trackLead, trackViewContent } from '@/lib/metaPixel'
+import { logEvent } from '@/lib/events'
 
 const PLAN_ORDER = ['free', 'mensajero', 'proclamador']
 
@@ -35,6 +36,7 @@ export function Pricing() {
   // re-render provocado por la carga del perfil.
   useEffect(() => {
     trackViewContent()
+    logEvent('vio_pricing')
   }, [])
 
   // Sin pasarela de pago automática todavía: "Elegir [plan]" abre WhatsApp
@@ -99,7 +101,10 @@ export function Pricing() {
                       href={buildWhatsAppLink(buildActivationMessage(plan.name))}
                       target="_blank"
                       rel="noopener noreferrer"
-                      onClick={trackLead}
+                      onClick={() => {
+                        trackLead()
+                        logEvent('click_whatsapp_pago', { source: 'pricing', plan: key })
+                      }}
                     >
                       {`Elegir ${plan.name}`}
                     </a>
