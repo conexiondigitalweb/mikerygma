@@ -4,6 +4,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useProfile } from '@/hooks/useProfile'
 import { supabase } from '@/lib/supabase'
 import { trackCompleteRegistration } from '@/lib/metaPixel'
+import { getStoredUtmParams } from '@/lib/utmTracking'
 import { DENOMINATIONS, TRANSLATIONS, ROLES } from '@/lib/constants'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -31,6 +32,11 @@ export function Onboarding() {
     setError('')
     setLoading(true)
 
+    // Origen de anuncio (Meta Ads) capturado en el primer contacto con el
+    // sitio — ver src/lib/utmTracking.js. Queda en {} si el usuario no vino
+    // de un anuncio, así que cada campo cae en null sin romper nada.
+    const utmParams = getStoredUtmParams()
+
     const { error } = await supabase.from('profiles').upsert({
       id: user.id,
       full_name: fullName,
@@ -41,6 +47,9 @@ export function Onboarding() {
       preferred_translation: translation,
       country,
       church_name: churchName || null,
+      utm_source: utmParams.utm_source ?? null,
+      utm_campaign: utmParams.utm_campaign ?? null,
+      utm_medium: utmParams.utm_medium ?? null,
     })
 
     setLoading(false)

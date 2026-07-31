@@ -29,6 +29,9 @@ CREATE TABLE profiles (
   application_type TEXT, -- practica_diaria, introspectiva, comunitaria, evangelistica, familiar
   pastoral_closing TEXT, -- llamado, oracion_guiada, reflexion, desafio, consuelo
   phrases_to_avoid TEXT, -- frases o enfoques a evitar, máximo 500 caracteres (validado en frontend)
+  utm_source TEXT, -- origen de anuncio capturado en el primer contacto (migración 013) — ej. 'meta'
+  utm_campaign TEXT, -- ej. 'angulo1'/'angulo2'/'angulo3' — ver Meta Ads Manager
+  utm_medium TEXT, -- ej. 'paid_social'
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

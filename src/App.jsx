@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
 import { Layout } from '@/components/Layout'
 import { trackPageView } from '@/lib/metaPixel'
+import { captureUtmParams } from '@/lib/utmTracking'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { HomeRoute } from '@/components/HomeRoute'
 import { Login } from '@/pages/Login'
@@ -36,6 +37,13 @@ function useMetaPixelPageView() {
 
 function App() {
   useMetaPixelPageView()
+
+  // Se captura una sola vez por carga de la app (no por cambio de ruta como
+  // el PageView de arriba) — ver src/lib/utmTracking.js para el criterio de
+  // atribución first-touch.
+  useEffect(() => {
+    captureUtmParams()
+  }, [])
 
   return (
     <Layout>
