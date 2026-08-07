@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { Lock } from 'lucide-react'
 import { useAuth } from '@/hooks/useAuth'
@@ -105,6 +105,30 @@ const MODE_FEATURE_KEYS = {
   youtube: 'mode_youtube',
 }
 
+// Fricción real medida en móvil: el botón principal queda a ~1500px de
+// scroll (4 tarjetas de modo + textarea + 3 selects + instrucciones). Este
+// hook observa el botón "real" (el que ya dispara la acción, sin duplicar
+// lógica) y avisa cuándo salió de la vista, para mostrar una versión fija
+// abajo — ver StickyGenerateBar más abajo. `ref` es un callback ref (no un
+// useRef normal) a propósito: el nodo cambia entre renders (form vs.
+// PreviewCard), y solo un callback ref dispara el efecto de nuevo cuando
+// React lo reasigna a un elemento distinto.
+function useStickyButtonVisibility() {
+  const [node, setNode] = useState(null)
+  const [visible, setVisible] = useState(true)
+
+  const ref = useCallback((el) => setNode(el), [])
+
+  useEffect(() => {
+    if (!node) return
+    const observer = new IntersectionObserver(([entry]) => setVisible(entry.isIntersecting), { threshold: 0 })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [node])
+
+  return [ref, visible]
+}
+
 function friendlyStreamError(reason) {
   const normalized = (reason || '').toLowerCase()
   if (normalized.includes('content filtering') || normalized.includes('blocked')) {
@@ -172,6 +196,19 @@ export function Generate() {
     return Array.isArray(puntos) ? puntos : []
   })
   const [scriptureWarning, setScriptureWarning] = useState(null)
+
+  // "Instrucciones adicionales" arranca colapsado (campo opcional que la
+  // mayoría no llena) para acortar el scroll — salvo que ya venga con texto
+  // restaurado de un preview en curso, para no esconder algo que el usuario
+  // ya escribió.
+  const [showCustomInstructions, setShowCustomInstructions] = useState(
+    () => Boolean(restoredPreview?.customInstructions?.trim())
+  )
+
+  // Ver useStickyButtonVisibility arriba — mainActionRef se le pasa al botón
+  // que esté activo en cada paso (el submit del formulario o el de
+  // PreviewCard), nunca a los dos a la vez.
+  const [mainActionRef, mainActionVisible] = useStickyButtonVisibility()
 
   // Evita invocaciones concurrentes de handleGenerate (doble clic, etc.): sin esto,
   // dos streams simultáneos escriben sobre el mismo setStreamedChars y el que responde
@@ -627,6 +664,25 @@ export function Generate() {
     ? inputText.trim().split(/\s+/).slice(0, 200).join(' ')
     : ''
 
+  // Solo para la micro-animación del botón (punto 2) — "ya hay contenido
+  // válido para intentar generar", sea pasaje/tema/situación escrito o
+  // transcripción de YouTube ya lista.
+  const hasValidInput = isYoutube ? hasTranscript : inputText.trim().length > 0
+
+  // Config del botón fijo cuando el real sale de la vista (punto 1) — nunca
+  // duplica la lógica de negocio: onClick siempre dispara un click() real
+  // sobre el botón original vía mainActionRef.
+  const stickyConfig =
+    previewStep && preview
+      ? { label: 'Generar mi kerygma con este enfoque', disabled: false, pulse: false }
+      : showRestOfForm
+        ? {
+            label: 'Ver enfoque propuesto',
+            disabled: !hasGenerationsLeft || !inputText.trim(),
+            pulse: hasValidInput,
+          }
+        : null
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-16">
       <h1 className="text-3xl font-bold text-foreground">Nueva generación</h1>
@@ -712,6 +768,7 @@ export function Generate() {
                 onConfirm={() => handleGenerate(true)}
                 onRegenerate={fetchPreview}
                 onBack={resetPreviewState}
+                mainActionRef={mainActionRef}
               />
               {scriptureWarning && (
                 <div className="space-y-2 rounded-md border border-primary/30 bg-primary/5 px-4 py-3 text-sm text-foreground">
@@ -840,30 +897,44 @@ export function Generate() {
                     </div>
                   </div>
 
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <Label htmlFor="custom-instructions">Instrucciones adicionales (opcional)</Label>
-                      <span className="text-xs text-muted-foreground">
-                        {customInstructions.length}/{CUSTOM_INSTRUCTIONS_MAX}
-                      </span>
+                  {showCustomInstructions ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <Label htmlFor="custom-instructions">Instrucciones adicionales (opcional)</Label>
+                        <span className="text-xs text-muted-foreground">
+                          {customInstructions.length}/{CUSTOM_INSTRUCTIONS_MAX}
+                        </span>
+                      </div>
+                      <Textarea
+                        id="custom-instructions"
+                        rows={3}
+                        maxLength={CUSTOM_INSTRUCTIONS_MAX}
+                        disabled={!canUseCustomInstructions}
+                        placeholder={
+                          canUseCustomInstructions
+                            ? 'Ej: Enfócate en los jóvenes / Incluye referencias a la crisis económica / Quiero un tono más profético / Mi congregación está en proceso de duelo / Hazlo más reflexivo y menos didáctico'
+                            : 'Personaliza cada generación — Plan Mensajero'
+                        }
+                        value={customInstructions}
+                        onChange={(e) => setCustomInstructions(e.target.value)}
+                      />
+                      {!canUseCustomInstructions && (
+                        <UpgradePrompt variant="inline" requiredPlan="mensajero" />
+                      )}
                     </div>
-                    <Textarea
-                      id="custom-instructions"
-                      rows={3}
-                      maxLength={CUSTOM_INSTRUCTIONS_MAX}
-                      disabled={!canUseCustomInstructions}
-                      placeholder={
-                        canUseCustomInstructions
-                          ? 'Ej: Enfócate en los jóvenes / Incluye referencias a la crisis económica / Quiero un tono más profético / Mi congregación está en proceso de duelo / Hazlo más reflexivo y menos didáctico'
-                          : 'Personaliza cada generación — Plan Mensajero'
-                      }
-                      value={customInstructions}
-                      onChange={(e) => setCustomInstructions(e.target.value)}
-                    />
-                    {!canUseCustomInstructions && (
-                      <UpgradePrompt variant="inline" requiredPlan="mensajero" />
-                    )}
-                  </div>
+                  ) : (
+                    // Colapsado por defecto — es un campo opcional que la mayoría
+                    // no llena, y acorta el scroll hasta el botón principal sin
+                    // quitar la funcionalidad (sigue siendo el mismo campo, solo
+                    // oculto hasta que se pida).
+                    <button
+                      type="button"
+                      onClick={() => setShowCustomInstructions(true)}
+                      className="text-sm font-medium text-primary underline underline-offset-2 hover:text-primary/80"
+                    >
+                      + Agregar instrucciones adicionales (opcional)
+                    </button>
+                  )}
 
                   {!hasGenerationsLeft && (
                     <p className="rounded-md bg-destructive/10 px-4 py-3 text-sm text-destructive">
@@ -893,15 +964,54 @@ export function Generate() {
                     </div>
                   )}
 
-                  <Button type="submit" size="lg" className="w-full" disabled={!hasGenerationsLeft || !inputText.trim()}>
-                    Ver enfoque propuesto
-                  </Button>
+                  <div ref={mainActionRef}>
+                    <Button
+                      type="submit"
+                      size="lg"
+                      className={cn('w-full', hasValidInput && 'animate-gentle-pulse')}
+                      disabled={!hasGenerationsLeft || !inputText.trim()}
+                    >
+                      Ver enfoque propuesto
+                    </Button>
+                  </div>
                 </form>
               )}
             </>
           )}
         </div>
       )}
+
+      {stickyConfig && !mainActionVisible && (
+        <StickyGenerateBar
+          label={stickyConfig.label}
+          disabled={stickyConfig.disabled}
+          pulse={stickyConfig.pulse}
+          onClick={() => mainActionRef.current?.querySelector('button')?.click()}
+        />
+      )}
+    </div>
+  )
+}
+
+// Punto 1 de la mejora de UX: cuando el botón real (mainActionRef) sale de
+// la vista por scroll, esta barra fija aparece con la misma acción — nunca
+// duplica lógica, solo dispara un click() real sobre el botón original.
+// Desaparece sola en cuanto el botón real vuelve a estar visible (ver
+// useStickyButtonVisibility), así que nunca se ven los dos al mismo tiempo.
+function StickyGenerateBar({ label, disabled, pulse, onClick }) {
+  return (
+    <div className="animate-in slide-in-from-bottom-4 fixed inset-x-0 bottom-0 z-40 border-t border-border bg-background/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur duration-200 supports-[backdrop-filter]:bg-background/90">
+      <div className="mx-auto max-w-3xl">
+        <Button
+          type="button"
+          size="lg"
+          className={cn('w-full', pulse && 'animate-gentle-pulse')}
+          disabled={disabled}
+          onClick={onClick}
+        >
+          {label}
+        </Button>
+      </div>
     </div>
   )
 }
@@ -927,6 +1037,7 @@ function PreviewCard({
   onConfirm,
   onRegenerate,
   onBack,
+  mainActionRef,
 }) {
   const updatePunto = (index, value) => {
     setEditedPuntos((prev) => prev.map((p, i) => (i === index ? value : p)))
@@ -1016,9 +1127,11 @@ function PreviewCard({
       </div>
 
       <div className="space-y-3 pt-2">
-        <Button type="button" size="lg" className="w-full" onClick={onConfirm}>
-          Generar mi kerygma con este enfoque
-        </Button>
+        <div ref={mainActionRef}>
+          <Button type="button" size="lg" className="w-full" onClick={onConfirm}>
+            Generar mi kerygma con este enfoque
+          </Button>
+        </div>
         <Button type="button" variant="outline" size="lg" className="w-full" onClick={onRegenerate}>
           Proponer otro enfoque
         </Button>

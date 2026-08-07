@@ -109,3 +109,21 @@
     font-family: var(--font-sans);
   }
 }
+
+/* Pulso suave para el botón principal de Generate.jsx cuando ya hay
+   contenido válido — un halo que crece y se desvanece, NO un parpadeo de
+   opacidad (evita que se sienta como un anuncio). Usa var(--primary) para
+   quedar bien en modo oscuro sin duplicar el color. */
+@keyframes gentle-pulse-ring {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--primary) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--primary) 0%, transparent);
+  }
+}
+
+.animate-gentle-pulse {
+  animation: gentle-pulse-ring 2.5s ease-in-out infinite;
+}
