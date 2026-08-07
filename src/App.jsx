@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Routes, Route, useLocation } from 'react-router-dom'
+import { Analytics } from '@vercel/analytics/react'
 import { Layout } from '@/components/Layout'
 import { trackPageView } from '@/lib/metaPixel'
 import { captureUtmParams } from '@/lib/utmTracking'
@@ -112,6 +113,7 @@ function App() {
           }
         />
       </Routes>
+      <Analytics />
     </Layout>
   )
 }
